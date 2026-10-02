@@ -1,0 +1,18 @@
+# Job requirements file - read directly by logic_manager.py
+# Lines starting with # are ignored (comments). Format: key: value
+#
+# The Logic Manager grades every resume on THREE things:
+#   1. required_skills (below)      - 40% of the score
+#   2. years of IT experience       - 40% of the score (capped at 5 years
+#                                      for full marks - see MAX_EXPERIENCE_FOR_FULL_SCORE
+#                                      in logic_manager.py)
+#   3. number of IT certificates    - 20% of the score (capped at 3 certs
+#                                      for full marks - see MAX_CERTS_FOR_FULL_SCORE
+#                                      in logic_manager.py)
+
+# Comma-separated list of skills the candidate should have.
+required_skills: python, sql, tableau, power bi, aws, docker, kubernetes, git, linux
+
+# Minimum years of IT experience required just to be ELIGIBLE for Accept.
+# (This is the pass/fail bar, not the scoring cap - see above.)
+min_experience: 1
