@@ -5,14 +5,16 @@ Core engine - every resume record passes through here.
 
 Responsibilities:
   - Build a prompt from the batch of resumes
-  - Call the API, parse response
-  - Validate response schema - reject/retry on malformed output
-  - Handle API failure gracefully (log and continue, never crash)
+  - Upload resumes to the AI API (Gemini) and call it
+  - Validate the response schema - reject/retry on malformed output
+  - Handle API failures gracefully (log and continue, never crash)
   - Split the batch response into one record per resume
 
 Zero domain logic lives here - only API interaction and response plumbing.
+The AI never sees job requirements; it only extracts facts from each resume.
 
-NOTE: API_KEY is hardcoded below for LOCAL USE ONLY.
+NOTE: API_KEY is hardcoded below for local testing only.
+Do NOT commit/push this file to GitHub with a real key in it.
 """
 
 import os
@@ -25,13 +27,13 @@ from google import genai
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AIManager")
 
-# --- Hardcoded for local use only ---
-API_KEY = "Insert your API key here"
-client = genai.Client(api_key=API_KEY)
+# --- Hardcoded for local testing only ---
+API_KEY = "API KEY HERE"
+_client = genai.Client(api_key=API_KEY)
 # -----------------------------------------
 
-MODEL_NAME = "gemini-2.0-flash"  # swap for whichever Gemini model your team settles on
-MAX_RETRIES = 3
+MODEL_NAME = "gemini-3.5-flash-lite"  
+MAX_RETRIES = 5
 
 REQUIRED_FIELDS = {"filename", "skills", "experience_years", "certificates"}
 
@@ -53,11 +55,11 @@ def _build_prompt(filenames):
 
 
 def _upload_resumes(resume_paths):
-    """Uploads each resume file to the API's file store and returns the file handles."""
+    #Uploads each resume file to the API's file store and returns the file handles.
     uploaded = []
     for path in resume_paths:
         try:
-            file_ref = client.files.upload(file=path)
+            file_ref = _client.files.upload(file=path)
             uploaded.append(file_ref)
         except Exception as e:
             logger.error(f"Failed to upload {path}: {e}")
@@ -65,7 +67,7 @@ def _upload_resumes(resume_paths):
 
 
 def _validate_record(record):
-    """Checks a single parsed record has the required fields and correct types."""
+    #Checks a single parsed record has the required fields and correct types.
     if not isinstance(record, dict):
         return False
     if not REQUIRED_FIELDS.issubset(record.keys()):
@@ -78,12 +80,12 @@ def _validate_record(record):
         return False
     return True
 
-#Parses the model's raw text output into a list of dicts. Returns None on failure.
+
 def _parse_response(raw_text):
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.strip("`")
-        if cleaned.startswith("json"):
+        if cleaned.lower().startswith("json"):
             cleaned = cleaned[4:]
     try:
         data = json.loads(cleaned)
@@ -93,7 +95,8 @@ def _parse_response(raw_text):
         return None
     return data
 
-def process_resume_batch(resume_paths): #To be called by I/O Manager
+
+def process_resume_batch(resume_paths):
     if not resume_paths:
         return []
 
@@ -107,7 +110,7 @@ def process_resume_batch(resume_paths): #To be called by I/O Manager
                 logger.error("No resumes were successfully uploaded.")
                 return []
 
-            response = client.models.generate_content(
+            response = _client.models.generate_content(
                 model=MODEL_NAME,
                 contents=[prompt, *uploaded_files],
                 config={"response_mime_type": "application/json"},
@@ -132,7 +135,7 @@ def process_resume_batch(resume_paths): #To be called by I/O Manager
 
         except Exception as e:
             logger.error(f"Attempt {attempt}: API call failed: {e}")
-            time.sleep(1.5 * attempt)
+            time.sleep(5 * attempt)
 
     logger.error("All retries exhausted. Returning empty result for this batch.")
     return []
