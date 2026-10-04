@@ -61,6 +61,33 @@ def _prompt_menu_choice():
             return choice
         print("[!] Invalid choice. Please enter 1, 2, or 3.")
 
+def handle_scan_resume():
+    """Placeholder - the full pipeline is wired in during integration."""
+    resume_paths = _get_resume_paths()
+    if not resume_paths:
+        return
+
+    print(f"Scanning {len(resume_paths)} resume(s)...")
+    print("[DEBUG-TEMP] AI step not wired up yet")
+
+def handle_view_summary():
+    """Placeholder - will load saved records during integration."""
+    print("[DEBUG-TEMP] view summary not wired up yet")
+
+def run():
+    """Main menu loop."""
+    while True:
+        choice = _prompt_menu_choice()
+
+        if choice == "1":
+            handle_scan_resume()
+        elif choice == "2":
+            handle_view_summary()
+        elif choice == "3":
+            print("Goodbye!")
+            break
+
+
 # [DEBUG-TEMP] test the move using a throw-away folder - remove later
 if __name__ == "__main__":
-     print("[DEBUG-TEMP] you chose:", _prompt_menu_choice())
+     run()
