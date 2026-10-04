@@ -10,3 +10,11 @@ Responsibilities:
   - All print() calls in the system live here and nowhere else
   - Format individual records and lists
 """
+import os
+
+RESUME_FOLDER = "./resumes"
+SCANNED_FOLDER = "./scannedResume"
+SUPPORTED_EXTENSIONS = (".pdf",)
+
+if __name__ == "__main__":
+    print("[DEBUG-TEMP] io_manager loaded, RESUME_FOLDER =", RESUME_FOLDER)
