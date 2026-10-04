@@ -16,5 +16,14 @@ RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
 SUPPORTED_EXTENSIONS = (".pdf",)
 
+def _get_resume_paths(folder=RESUME_FOLDER):
+    """Finds all supported resume files in the hardcoded folder."""
+    paths = [
+        os.path.join(folder, f)
+        for f in sorted(os.listdir(folder))
+        if f.lower().endswith(SUPPORTED_EXTENSIONS)
+    ]
+    return paths
+
 if __name__ == "__main__":
-    print("[DEBUG-TEMP] io_manager loaded, RESUME_FOLDER =", RESUME_FOLDER)
+    print("[DEBUG-TEMP] found:", _get_resume_paths())
