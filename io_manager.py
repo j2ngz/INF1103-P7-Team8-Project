@@ -92,17 +92,54 @@ def _truncate(text, max_len):
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 def _print_table(records):
-    """Prints a simple summary table: ID, Name, Score, Outcome."""
+    """
+    Formats and prints a clean, boxed summary table: ID, Name, Score, Outcome.
+
+    Column widths are computed from the actual data (capped on Name to keep
+    the table from stretching too wide for a long name), so the borders stay
+    aligned regardless of content length.
+    """
     if not records:
         print("\nNo records to display.\n")
         return
 
-    print()
-    print(f"{'ID':<4} {'Name':<24} {'Score':<8} {'Outcome':<10}")
-    print("-" * 50)
+    if not records:
+        print("\nNo records to display.\n")
+        return
+
+    headers = ["ID", "Name", "Score", "Outcome"]
+    max_name_w = 28
+
+    rows = []
     for r in records:
+        rid = str(r.get("id", ""))
+        name = _truncate(str(r.get("name", "")), max_name_w)
         score = f"{r.get('score', 0)}/10"
-        print(f"{str(r.get('id', '')):<4} {str(r.get('name', '')):<24} {score:<8} {str(r.get('outcome', '')):<10}")
+        outcome = str(r.get("outcome", ""))
+        rows.append([rid, name, score, outcome])
+
+    # Column widths: fit the header and the widest value in that column.
+    widths = [
+        max(len(headers[i]), max((len(row[i]) for row in rows), default=0))
+        for i in range(len(headers))
+    ]
+
+    def format_row(cols):
+        return "| " + " | ".join(f"{c:<{widths[i]}}" for i, c in enumerate(cols)) + " |"
+
+    separator = "|" + "|".join("-" * (w + 2) for w in widths) + "|"
+    total_w = len(separator)
+
+    print()
+    print("=" * total_w)
+    print(f" Resume Screening Summary — Total Records: {len(records)}")
+    print("=" * total_w)
+    print(format_row(headers))
+    print(separator)
+    for row in rows:
+        print(format_row(row))
+
+    print("=" * total_w)
     print()
 
 # [DEBUG-TEMP] test the move using a throw-away folder - remove later
