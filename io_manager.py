@@ -47,14 +47,20 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
+"""Jun Kang's part"""
+def _prompt_menu_choice():
+    """Prints the menu and validates the user's choice. Re-prompts on invalid input."""
+    while True:
+        print("\n=== Resume Screening System ===")
+        print("1. Scan Resume")
+        print("2. View Summary")
+        print("3. Exit")
+        choice = input("Select an option (1-3): ").strip()
+
+        if choice in ("1", "2", "3"):
+            return choice
+        print("[!] Invalid choice. Please enter 1, 2, or 3.")
+
 # [DEBUG-TEMP] test the move using a throw-away folder - remove later
 if __name__ == "__main__":
-    import tempfile
-    with tempfile.TemporaryDirectory() as tmp:
-        src_dir = os.path.join(tmp, "resumes")
-        dst_dir = os.path.join(tmp, "scanned")
-        os.makedirs(src_dir)
-        open(os.path.join(src_dir, "test.pdf"), "w").close()
-        print("[DEBUG-TEMP] before:", os.listdir(src_dir))
-        _move_scanned_resumes(src_dir, ["test.pdf"], dst_dir)
-        print("[DEBUG-TEMP] after: resumes =", os.listdir(src_dir), "scanned =", os.listdir(dst_dir))
+     print("[DEBUG-TEMP] you chose:", _prompt_menu_choice())
