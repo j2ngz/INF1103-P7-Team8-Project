@@ -18,6 +18,10 @@ SUPPORTED_EXTENSIONS = (".pdf",)
 
 def _get_resume_paths(folder=RESUME_FOLDER):
     """Finds all supported resume files in the hardcoded folder."""
+    if not os.path.isdir(folder):
+        print(f"[!] Resume folder '{folder}' does not exist.")
+        return []
+
     paths = [
         os.path.join(folder, f)
         for f in sorted(os.listdir(folder))
