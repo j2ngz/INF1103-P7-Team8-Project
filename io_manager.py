@@ -87,7 +87,11 @@ def run():
             print("Goodbye!")
             break
 
+def _truncate(text, max_len):
+    """Truncates text with an ellipsis if it's longer than max_len."""
+    return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 # [DEBUG-TEMP] test the move using a throw-away folder - remove later
 if __name__ == "__main__":
-     run()
+    print("[DEBUG-TEMP]", _truncate("Alexandria Montgomery-Featherstonehaugh", 20))  # [DEBUG-TEMP]
+    run()
