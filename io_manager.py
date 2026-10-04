@@ -27,6 +27,8 @@ def _get_resume_paths(folder=RESUME_FOLDER):
         for f in sorted(os.listdir(folder))
         if f.lower().endswith(SUPPORTED_EXTENSIONS)
     ]
+    if not paths:
+        print(f"[!] No resumes found in '{folder}'.")
     return paths
 
 if __name__ == "__main__":
