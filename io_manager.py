@@ -91,7 +91,30 @@ def _truncate(text, max_len):
     """Truncates text with an ellipsis if it's longer than max_len."""
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
+def _print_table(records):
+    """Prints a simple summary table: ID, Name, Score, Outcome."""
+    if not records:
+        print("\nNo records to display.\n")
+        return
+
+    print()
+    print(f"{'ID':<4} {'Name':<24} {'Score':<8} {'Outcome':<10}")
+    print("-" * 50)
+    for r in records:
+        score = f"{r.get('score', 0)}/10"
+        print(f"{str(r.get('id', '')):<4} {str(r.get('name', '')):<24} {score:<8} {str(r.get('outcome', '')):<10}")
+    print()
+
 # [DEBUG-TEMP] test the move using a throw-away folder - remove later
 if __name__ == "__main__":
-    print("[DEBUG-TEMP]", _truncate("Alexandria Montgomery-Featherstonehaugh", 20))  # [DEBUG-TEMP]
+     # [DEBUG-TEMP] fake records to preview the table 
+    FAKE_RECORDS = [
+        {"id": "01", "name": "Alice Tan", "score": 8.4, "outcome": "Accepted",
+         "missing_skills_count": 1, "it_certs": ["aws certified solutions architect"]},
+        {"id": "02", "name": "Bob Lim", "score": 5.6, "outcome": "Flagged",
+         "missing_skills_count": 5, "it_certs": ["comptia security+"]},
+        {"id": "03", "name": "Alexandria Montgomery-Featherstonehaugh", "score": 2.1,
+         "outcome": "Rejected", "missing_skills_count": 9, "it_certs": []},
+    ]
+    _print_table(FAKE_RECORDS)  
     run()
