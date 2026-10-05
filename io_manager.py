@@ -93,11 +93,9 @@ def _truncate(text, max_len):
 
 def _print_table(records):
     """
-    Formats and prints a clean, boxed summary table: ID, Name, Score, Outcome.
-
-    Column widths are computed from the actual data (capped on Name to keep
-    the table from stretching too wide for a long name), so the borders stay
-    aligned regardless of content length.
+    Formats and prints a clean, boxed summary table: ID, Name, Score, Outcome,
+    Notes - all in one row per candidate. Notes is only populated for Flagged
+    resumes (missing skill count + IT cert count); blank for Accepted/Rejected.
     """
     if not records:
         print("\nNo records to display.\n")
@@ -107,7 +105,7 @@ def _print_table(records):
         print("\nNo records to display.\n")
         return
 
-    headers = ["ID", "Name", "Score", "Outcome"]
+    headers = ["ID", "Name", "Score", "Outcome", "Notes"]
     max_name_w = 28
 
     rows = []
@@ -116,7 +114,13 @@ def _print_table(records):
         name = _truncate(str(r.get("name", "")), max_name_w)
         score = f"{r.get('score', 0)}/10"
         outcome = str(r.get("outcome", ""))
-        rows.append([rid, name, score, outcome])
+        if outcome == "Flagged":
+               missing_count = r.get("missing_skills_count", 0)
+               certs_count = len(r.get("it_certs", []))
+               notes = f"{missing_count} skill(s) missing, {certs_count} IT cert(s)"
+        else:
+               notes = ""
+        rows.append([rid, name, score, outcome, notes])
 
     # Column widths: fit the header and the widest value in that column.
     widths = [
