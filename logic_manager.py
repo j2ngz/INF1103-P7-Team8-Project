@@ -7,15 +7,7 @@ logger = logging.getLogger("LogicManager")
 
 REQUIREMENTS_FILE = "requirements.txt"
 
-TARGET_FIELD = "IT"
-
-SKILLS_FOR_FULL_SCORE = 4
-
-MAX_EXPERIENCE_FOR_FULL_SCORE = 5
-
-MAX_CERTS_FOR_FULL_SCORE = 3
-
-ACCEPT_SCORE_THRESHOLD = 7.5
+ACCEPT_SCORE_THRESHOLD = 8.0
 REJECT_SCORE_THRESHOLD = 4.0
 
 
@@ -31,7 +23,7 @@ def load_requirements(path=REQUIREMENTS_FILE):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith("#") or ":" not in line:
+                if not line or ":" not in line:
                     continue
                 key, value = line.split(":", 1)
                 key = key.strip().lower()
@@ -53,61 +45,52 @@ def load_requirements(path=REQUIREMENTS_FILE):
     return requirements
 
 
-def _normalize_certs_by_industry(certs_by_industry):
-    normalized = {}
-    for industry, certs in (certs_by_industry or {}).items():
-        normalized[industry.strip().lower()] = [c.strip().lower() for c in certs]
-    return normalized
-
-
-def _skill_is_matched(required_skill, candidate_skills):
-    return any(required_skill in candidate_skill for candidate_skill in candidate_skills)
-
-
 def _compute_score(record, requirements):
     required_skills = [s.lower() for s in requirements.get("required_skills", [])]
     candidate_skills = [s.lower() for s in record.get("skills", [])]
 
     if required_skills:
-        matched_count = sum(1 for s in required_skills if _skill_is_matched(s, candidate_skills))
-        skill_fraction = min(matched_count / SKILLS_FOR_FULL_SCORE, 1.0)
+        matched_count = sum(1 for s in required_skills if s in candidate_skills)
+        skill_fraction = matched_count / len(required_skills)
     else:
         skill_fraction = 1.0
 
-    field_experience = record.get("experience_by_field", {}).get(TARGET_FIELD, 0)
-    experience_fraction = min(field_experience / MAX_EXPERIENCE_FOR_FULL_SCORE, 1.0)
+    min_experience = requirements.get("min_experience", 0)
+    experience_years = record.get("experience_years", 0)
+    experience_fraction = min(experience_years / min_experience, 1.0) if min_experience > 0 else 1.0
 
-    normalized_certs = _normalize_certs_by_industry(record.get("certificates_by_industry"))
-    target_field_certs = normalized_certs.get(TARGET_FIELD.lower(), [])
-    certs_fraction = min(len(target_field_certs) / MAX_CERTS_FOR_FULL_SCORE, 1.0)
-
-    score = (skill_fraction * 0.4 + experience_fraction * 0.4 + certs_fraction * 0.2) * 10
-    return (
-        round(score, 1), required_skills, candidate_skills,
-        field_experience, normalized_certs, target_field_certs,
-    )
+    score = (skill_fraction * 0.7 + experience_fraction * 0.3) * 10
+    return round(score, 1), required_skills, candidate_skills
 
 
 def evaluate_resume(record, requirements):
-    (score, required_skills, candidate_skills,
-     field_experience, normalized_certs, target_field_certs) = _compute_score(record, requirements)
+    """
+    Takes one AI-enriched record (filename, skills, experience_years, certificates)
+    and returns a fully graded record ready for the Data Manager:
+        {filename, skills, experience_years, certificates,
+         missing_skills, score, outcome, timestamp}
+    """
+    score, required_skills, candidate_skills = _compute_score(record, requirements)
 
-    missing_skills = [s for s in required_skills if not _skill_is_matched(s, candidate_skills)]
+    missing_skills = [s for s in required_skills if s not in candidate_skills]
+    all_required_present = len(missing_skills) == 0
 
-    if score > ACCEPT_SCORE_THRESHOLD:
+    min_experience = requirements.get("min_experience", 0)
+    meets_experience = record.get("experience_years", 0) >= min_experience
+
+    if score > ACCEPT_SCORE_THRESHOLD and all_required_present and meets_experience:
         outcome = "Accepted"
-    elif score <= REJECT_SCORE_THRESHOLD:
+    elif score <= REJECT_SCORE_THRESHOLD or not all_required_present:
         outcome = "Rejected"
     else:
         outcome = "Flagged"
 
     return {
-        "name": record.get("name", "Unknown"),
-        "skills": [s.lower() for s in record.get("skills", [])],
-        "it_experience_years": field_experience,
-        "certificates": normalized_certs,
-        "it_certs": target_field_certs,
-        "missing_skills_count": len(missing_skills),
+        "filename": record.get("filename", "unknown"),
+        "skills": record.get("skills", []),
+        "experience_years": record.get("experience_years", 0),
+        "certificates": record.get("certificates", []),
+        "missing_skills": missing_skills,
         "score": score,
         "outcome": outcome,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
