@@ -13,3 +13,10 @@ FIELDNAMES = [
 COLUMN_SEPARATOR = "||"
 ITEM_SEPARATOR = ","
 INDUSTRY_SEPARATOR = ";"
+
+def _list_to_cell(items):
+    return ITEM_SEPARATOR.join(str(i).strip().lower() for i in items) if items else ""
+
+
+def _cell_to_list(cell):
+    return [s.strip() for s in cell.split(ITEM_SEPARATOR) if s.strip()] if cell else []
