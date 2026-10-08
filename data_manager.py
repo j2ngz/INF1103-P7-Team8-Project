@@ -14,18 +14,16 @@ COLUMN_SEPARATOR = "||"
 ITEM_SEPARATOR = ","
 INDUSTRY_SEPARATOR = ";"
 
+# Covert python list to a single comma separated lowercase string
 def _list_to_cell(items):
     return ITEM_SEPARATOR.join(str(i).strip().lower() for i in items) if items else ""
 
-
+# Parses comma separated string into python list of strings
 def _cell_to_list(cell):
     return [s.strip() for s in cell.split(ITEM_SEPARATOR) if s.strip()] if cell else []
 
+# Convert dictionary of industry certs into a formatted colon/semicolon string
 def _certs_dict_to_cell(certs_by_industry):
-    """
-    Serializes {"it": ["aws...", "comptia..."], "fnb": ["servsafe"]} into:
-        "it:aws...,comptia...;fnb:servsafe"
-    """
     if not certs_by_industry:
         return ""
     sections = []
@@ -34,9 +32,8 @@ def _certs_dict_to_cell(certs_by_industry):
         sections.append(f"{industry.strip().lower()}:{cert_list}")
     return INDUSTRY_SEPARATOR.join(sections)
 
-
+# Parses formatted cert string into a dictionary of lists by industry
 def _cell_to_certs_dict(cell):
-    """Parses a stored "industry:cert1,cert2;industry2:cert3" cell back into a dict."""
     result = {}
     if not cell:
         return result
