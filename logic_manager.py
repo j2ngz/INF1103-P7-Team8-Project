@@ -7,6 +7,14 @@ logger = logging.getLogger("LogicManager")
 
 REQUIREMENTS_FILE = "requirements.txt"
 
+TARGET_FIELD = "IT"
+
+SKILLS_FOR_FULL_SCORE = 4
+
+MAX_EXPERIENCE_FOR_FULL_SCORE = 5
+
+MAX_CERTS_FOR_FULL_SCORE = 3
+
 ACCEPT_SCORE_THRESHOLD = 7.5
 REJECT_SCORE_THRESHOLD = 4.0
 
@@ -23,7 +31,7 @@ def load_requirements(path=REQUIREMENTS_FILE):
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if not line or ":" not in line:
+                if not line or line.startswith("#") or ":" not in line:
                     continue
                 key, value = line.split(":", 1)
                 key = key.strip().lower()
@@ -45,28 +53,46 @@ def load_requirements(path=REQUIREMENTS_FILE):
     return requirements
 
 
+def _normalize_certs_by_industry(certs_by_industry):
+    normalized = {}
+    for industry, certs in (certs_by_industry or {}).items():
+        normalized[industry.strip().lower()] = [c.strip().lower() for c in certs]
+    return normalized
+
+
+def _skill_is_matched(required_skill, candidate_skills):
+    return any(required_skill in candidate_skill for candidate_skill in candidate_skills)
+
+
 def _compute_score(record, requirements):
     required_skills = [s.lower() for s in requirements.get("required_skills", [])]
     candidate_skills = [s.lower() for s in record.get("skills", [])]
 
     if required_skills:
-        matched_count = sum(1 for s in required_skills if s in candidate_skills)
-        skill_fraction = matched_count / len(required_skills)
+        matched_count = sum(1 for s in required_skills if _skill_is_matched(s, candidate_skills))
+        skill_fraction = min(matched_count / SKILLS_FOR_FULL_SCORE, 1.0)
     else:
         skill_fraction = 1.0
 
-    min_experience = requirements.get("min_experience", 0)
-    experience_years = record.get("experience_years", 0)
-    experience_fraction = min(experience_years / min_experience, 1.0) if min_experience > 0 else 1.0
+    field_experience = record.get("experience_by_field", {}).get(TARGET_FIELD, 0)
+    experience_fraction = min(field_experience / MAX_EXPERIENCE_FOR_FULL_SCORE, 1.0)
 
-    score = (skill_fraction * 0.7 + experience_fraction * 0.3) * 10
-    return round(score, 1), required_skills, candidate_skills
+    normalized_certs = _normalize_certs_by_industry(record.get("certificates_by_industry"))
+    target_field_certs = normalized_certs.get(TARGET_FIELD.lower(), [])
+    certs_fraction = min(len(target_field_certs) / MAX_CERTS_FOR_FULL_SCORE, 1.0)
+
+    score = (skill_fraction * 0.5 + experience_fraction * 0.3 + certs_fraction * 0.2) * 10
+    return (
+        round(score, 1), required_skills, candidate_skills,
+        field_experience, normalized_certs, target_field_certs,
+    )
 
 
 def evaluate_resume(record, requirements):
-    score, required_skills, candidate_skills = _compute_score(record, requirements)
+    (score, required_skills, candidate_skills,
+     field_experience, normalized_certs, target_field_certs) = _compute_score(record, requirements)
 
-    missing_skills = [s for s in required_skills if s not in candidate_skills]
+    missing_skills = [s for s in required_skills if not _skill_is_matched(s, candidate_skills)]
     matched_count = len(required_skills) - len(missing_skills)
 
     has_most_skills = (
@@ -75,39 +101,23 @@ def evaluate_resume(record, requirements):
     no_related_skills = bool(required_skills) and matched_count == 0
 
     min_experience = requirements.get("min_experience", 0)
-    meets_experience = record.get("experience_years", 0) >= min_experience
+    meets_experience = field_experience >= min_experience
 
     if score > ACCEPT_SCORE_THRESHOLD and has_most_skills and meets_experience:
         outcome = "Accepted"
-        review_notes = ""
     elif no_related_skills or score <= REJECT_SCORE_THRESHOLD:
         outcome = "Rejected"
-        review_notes = (
-            "no overlap with required skills" if no_related_skills else ""
-        )
     else:
         outcome = "Flagged"
-        reasons = []
-        if missing_skills:
-            reasons.append(f"missing skill(s): {', '.join(missing_skills)}")
-        if not meets_experience:
-            reasons.append(
-                f"experience below minimum ({record.get('experience_years', 0)} / "
-                f"{min_experience} years)"
-            )
-        if not reasons:
-            reasons.append("borderline score - recommend manual check")
-        review_notes = "; ".join(reasons)
 
     return {
-        "filename": record.get("filename", "unknown"),
-        "skills": record.get("skills", []),
-        "experience_years": record.get("experience_years", 0),
-        "certificates": record.get("certificates", []),
-        "missing_skills": missing_skills,
+        "name": record.get("name", "Unknown"),
+        "skills": [s.lower() for s in record.get("skills", [])],
+        "it_experience_years": field_experience,
+        "certificates": normalized_certs,
+        "it_certs": target_field_certs,
         "score": score,
         "outcome": outcome,
-        "review_notes": review_notes,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
