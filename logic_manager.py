@@ -7,7 +7,7 @@ logger = logging.getLogger("LogicManager")
 
 REQUIREMENTS_FILE = "requirements.txt"
 
-ACCEPT_SCORE_THRESHOLD = 8.0
+ACCEPT_SCORE_THRESHOLD = 7.5
 REJECT_SCORE_THRESHOLD = 4.0
 
 
@@ -64,26 +64,40 @@ def _compute_score(record, requirements):
 
 
 def evaluate_resume(record, requirements):
-    """
-    Takes one AI-enriched record (filename, skills, experience_years, certificates)
-    and returns a fully graded record ready for the Data Manager:
-        {filename, skills, experience_years, certificates,
-         missing_skills, score, outcome, timestamp}
-    """
     score, required_skills, candidate_skills = _compute_score(record, requirements)
 
     missing_skills = [s for s in required_skills if s not in candidate_skills]
-    all_required_present = len(missing_skills) == 0
+    matched_count = len(required_skills) - len(missing_skills)
+
+    has_most_skills = (
+        True if not required_skills else (matched_count / len(required_skills)) >= 0.5
+    )
+    no_related_skills = bool(required_skills) and matched_count == 0
 
     min_experience = requirements.get("min_experience", 0)
     meets_experience = record.get("experience_years", 0) >= min_experience
 
-    if score > ACCEPT_SCORE_THRESHOLD and all_required_present and meets_experience:
+    if score > ACCEPT_SCORE_THRESHOLD and has_most_skills and meets_experience:
         outcome = "Accepted"
-    elif score <= REJECT_SCORE_THRESHOLD or not all_required_present:
+        review_notes = ""
+    elif no_related_skills or score <= REJECT_SCORE_THRESHOLD:
         outcome = "Rejected"
+        review_notes = (
+            "no overlap with required skills" if no_related_skills else ""
+        )
     else:
         outcome = "Flagged"
+        reasons = []
+        if missing_skills:
+            reasons.append(f"missing skill(s): {', '.join(missing_skills)}")
+        if not meets_experience:
+            reasons.append(
+                f"experience below minimum ({record.get('experience_years', 0)} / "
+                f"{min_experience} years)"
+            )
+        if not reasons:
+            reasons.append("borderline score - recommend manual check")
+        review_notes = "; ".join(reasons)
 
     return {
         "filename": record.get("filename", "unknown"),
@@ -93,10 +107,12 @@ def evaluate_resume(record, requirements):
         "missing_skills": missing_skills,
         "score": score,
         "outcome": outcome,
+        "review_notes": review_notes,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
 def evaluate_batch(records):
+    """Evaluates a list of AI-enriched records. Called by I/O Manager after AI Manager returns."""
     requirements = load_requirements()
     return [evaluate_resume(r, requirements) for r in records]
