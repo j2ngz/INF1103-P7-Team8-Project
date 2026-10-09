@@ -50,3 +50,48 @@ def _row_to_line(values):
 
 def _line_to_row(line):
     return line.rstrip("\n").split(COLUMN_SEPARATOR)
+
+def load_records(path=CSV_FILE):
+    """
+    Loads all records from the file.
+    Returns an empty list if the file doesn't exist or is corrupt - never crashes.
+    """
+    records = []
+    if not os.path.exists(path):
+        logger.info(f"{path} not found. Starting with an empty record set.")
+        return records
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [line for line in f if line.strip()]
+    except Exception as e:
+        logger.error(f"Error reading {path}: {e}. Returning empty record set.")
+        return []
+
+    if not lines:
+        return records
+
+    header = _line_to_row(lines[0])
+    for line in lines[1:]:
+        values = _line_to_row(line)
+        if len(values) != len(header):
+            logger.warning(f"Skipping malformed row (column count mismatch): {line!r}")
+            continue
+        row = dict(zip(header, values))
+        try:
+            records.append({
+                "id": row.get("id", ""),
+                "name": row.get("name", ""),
+                "skills": _cell_to_list(row.get("skills", "")),
+                "it_experience_years": float(row.get("it_experience_years") or 0),
+                "certificates": _cell_to_certs_dict(row.get("certificates", "")),
+                "it_certs": _cell_to_list(row.get("it_certs", "")),
+                "missing_skills_count": int(float(row.get("missing_skills_count") or 0)),
+                "score": float(row.get("score") or 0),
+                "outcome": row.get("outcome", ""),
+                "timestamp": row.get("timestamp", ""),
+            })
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Skipping corrupt row: {row} ({e})")
+
+    return records
