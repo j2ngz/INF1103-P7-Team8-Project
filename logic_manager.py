@@ -81,7 +81,7 @@ def _compute_score(record, requirements):
     target_field_certs = normalized_certs.get(TARGET_FIELD.lower(), [])
     certs_fraction = min(len(target_field_certs) / MAX_CERTS_FOR_FULL_SCORE, 1.0)
 
-    score = (skill_fraction * 0.4 + experience_fraction * 0.4 + certs_fraction * 0.2) * 10
+    score = (skill_fraction * 0.5 + experience_fraction * 0.3 + certs_fraction * 0.2) * 10
     return (
         round(score, 1), required_skills, candidate_skills,
         field_experience, normalized_certs, target_field_certs,
@@ -93,10 +93,19 @@ def evaluate_resume(record, requirements):
      field_experience, normalized_certs, target_field_certs) = _compute_score(record, requirements)
 
     missing_skills = [s for s in required_skills if not _skill_is_matched(s, candidate_skills)]
+    matched_count = len(required_skills) - len(missing_skills)
 
-    if score > ACCEPT_SCORE_THRESHOLD:
+    has_most_skills = (
+        True if not required_skills else (matched_count / len(required_skills)) >= 0.5
+    )
+    no_related_skills = bool(required_skills) and matched_count == 0
+
+    min_experience = requirements.get("min_experience", 0)
+    meets_experience = field_experience >= min_experience
+
+    if score > ACCEPT_SCORE_THRESHOLD and has_most_skills and meets_experience:
         outcome = "Accepted"
-    elif score <= REJECT_SCORE_THRESHOLD:
+    elif no_related_skills or score <= REJECT_SCORE_THRESHOLD:
         outcome = "Rejected"
     else:
         outcome = "Flagged"
@@ -107,7 +116,6 @@ def evaluate_resume(record, requirements):
         "it_experience_years": field_experience,
         "certificates": normalized_certs,
         "it_certs": target_field_certs,
-        "missing_skills_count": len(missing_skills),
         "score": score,
         "outcome": outcome,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -115,5 +123,6 @@ def evaluate_resume(record, requirements):
 
 
 def evaluate_batch(records):
+    """Evaluates a list of AI-enriched records. Called by I/O Manager after AI Manager returns."""
     requirements = load_requirements()
     return [evaluate_resume(r, requirements) for r in records]
