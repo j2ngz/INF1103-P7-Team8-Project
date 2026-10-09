@@ -44,3 +44,9 @@ def _cell_to_certs_dict(cell):
         certs = [c.strip() for c in cert_list.split(ITEM_SEPARATOR) if c.strip()]
         result[industry.strip()] = certs
     return result
+
+def _row_to_line(values):
+    return COLUMN_SEPARATOR.join(str(v) for v in values)
+
+def _line_to_row(line):
+    return line.rstrip("\n").split(COLUMN_SEPARATOR)
