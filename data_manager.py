@@ -45,17 +45,16 @@ def _cell_to_certs_dict(cell):
         result[industry.strip()] = certs
     return result
 
+# Convert a list of column values into a single pipe-delimited line string
 def _row_to_line(values):
     return COLUMN_SEPARATOR.join(str(v) for v in values)
 
+# Parses a pipe-delimited line string back into a list of column values
 def _line_to_row(line):
     return line.rstrip("\n").split(COLUMN_SEPARATOR)
 
+# Loads and parses stored records into dictionaries, handling missing or corrupt files safely
 def load_records(path=CSV_FILE):
-    """
-    Loads all records from the file.
-    Returns an empty list if the file doesn't exist or is corrupt - never crashes.
-    """
     records = []
     if not os.path.exists(path):
         logger.info(f"{path} not found. Starting with an empty record set.")
