@@ -94,3 +94,8 @@ def load_records(path=CSV_FILE):
             logger.warning(f"Skipping corrupt row: {row} ({e})")
 
     return records
+
+# Determines the next sequential ID by counting existing records in the csv file
+def _next_id(path):
+    existing = load_records(path)
+    return len(existing) + 1
