@@ -78,6 +78,9 @@ def handle_scan_resume():
         print("[!] AI Manager returned no usable records. Nothing saved.")
         return
 
+    scanned_filenames = [r["filename"] for r in ai_records if r.get("filename")]
+    _move_scanned_resumes(RESUME_FOLDER, scanned_filenames)
+
     graded_records = logic_manager.evaluate_batch(ai_records)
     print("[DEBUG-TEMP] graded:", [(g["name"], g["score"], g["outcome"]) for g in graded_records])
     data_manager.save_records(graded_records)
