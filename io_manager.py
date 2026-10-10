@@ -78,6 +78,13 @@ def handle_scan_resume():
         print("[!] AI Manager returned no usable records. Nothing saved.")
         return
 
+    graded_records = logic_manager.evaluate_batch(ai_records)
+    print("[DEBUG-TEMP] graded:", [(g["name"], g["score"], g["outcome"]) for g in graded_records])
+    data_manager.save_records(graded_records)
+
+    print(f"Processed {len(graded_records)} resume(s).")
+    _print_table(graded_records)
+
 def handle_view_summary():
     """Loads all saved records (across all runs) and prints them."""
     records = data_manager.load_records()
