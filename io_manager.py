@@ -12,6 +12,7 @@ Responsibilities:
 """
 import os
 import shutil
+import data_manager
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
@@ -71,9 +72,11 @@ def handle_scan_resume():
     print("[DEBUG-TEMP] AI step not wired up yet")
 
 def handle_view_summary():
-    """Placeholder - will load saved records during integration."""
-    print("[DEBUG-TEMP] view summary not wired up yet")
-
+    """Loads all saved records (across all runs) and prints them."""
+    records = data_manager.load_records()
+    print(f"[DEBUG-TEMP] loaded {len(records)} record(s) from storage")
+    _print_table(records)
+    
 def run():
     """Main menu loop."""
     while True:
