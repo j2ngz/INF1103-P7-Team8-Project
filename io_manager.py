@@ -21,6 +21,7 @@ RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
 SUPPORTED_EXTENSIONS = (".pdf",)
 
+
 def _get_resume_paths(folder=RESUME_FOLDER):
     """Finds all supported resume files in the hardcoded folder."""
     if not os.path.isdir(folder):
@@ -35,6 +36,7 @@ def _get_resume_paths(folder=RESUME_FOLDER):
     if not paths:
         print(f"[!] No resumes found in '{folder}'.")
     return paths
+
 
 def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANNED_FOLDER):
     """
@@ -51,6 +53,7 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
+
 def _prompt_menu_choice():
     """Prints the menu and validates the user's choice. Re-prompts on invalid input."""
     while True:
@@ -63,6 +66,7 @@ def _prompt_menu_choice():
         if choice in ("1", "2", "3"):
             return choice
         print("[!] Invalid choice. Please enter 1, 2, or 3.")
+
 
 def handle_scan_resume():
     """Full pipeline: I/O Manager -> AI Manager -> Logic Manager -> Data Manager."""
@@ -86,10 +90,12 @@ def handle_scan_resume():
     print(f"Processed {len(graded_records)} resume(s).")
     _print_table(data_manager.load_records())
 
+
 def handle_view_summary():
     """Loads all saved records (across all runs) and prints them."""
     records = data_manager.load_records()
     _print_table(records)
+
 
 def run():
     """Main menu loop."""
@@ -104,9 +110,11 @@ def run():
             print("Goodbye!")
             break
 
+
 def _truncate(text, max_len):
     """Truncates text with an ellipsis if it's longer than max_len."""
     return text if len(text) <= max_len else text[: max_len - 1] + "…"
+
 
 def _print_table(records):
     """
@@ -158,6 +166,7 @@ def _print_table(records):
 
     print("=" * total_w)
     print()
+
 
 if __name__ == "__main__":
     run()
