@@ -130,3 +130,22 @@ def save_records(records, path=CSV_FILE):
                 f.write(_row_to_line(row) + "\n")
     except Exception as e:
         logger.error(f"Failed to save records to {path}: {e}")
+
+# Filters records by optional outcome, minimum score, and maximum score combined with AND logic
+def filter_records(records, outcome=None, min_score=None, max_score=None):
+    """
+    At least one filter/query function, as required.
+    All arguments are optional and combine with AND logic.
+
+    Example:
+        flagged = filter_records(records, outcome="Flagged")
+        strong = filter_records(records, min_score=7)
+    """
+    result = records
+    if outcome is not None:
+        result = [r for r in result if r["outcome"].lower() == outcome.lower()]
+    if min_score is not None:
+        result = [r for r in result if r["score"] >= min_score]
+    if max_score is not None:
+        result = [r for r in result if r["score"] <= max_score]
+    return result
