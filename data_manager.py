@@ -99,3 +99,34 @@ def load_records(path=CSV_FILE):
 def _next_id(path):
     existing = load_records(path)
     return len(existing) + 1
+
+# Appends a batch of records to csv database, writing headers if needed and using sequential IDs
+def save_records(records, path=CSV_FILE):
+    """
+    Appends a batch of graded records to the file, assigning each a
+    sequential, zero-padded id that continues from the existing data.
+    Writes a '||'-separated header line if the file doesn't exist yet.
+    """
+    file_exists = os.path.exists(path)
+    start_id = _next_id(path)
+
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            if not file_exists:
+                f.write(_row_to_line(FIELDNAMES) + "\n")
+            for i, record in enumerate(records):
+                row = [
+                    f"{start_id + i:02d}",
+                    record.get("name", ""),
+                    _list_to_cell(record.get("skills", [])),
+                    record.get("it_experience_years", 0),
+                    _certs_dict_to_cell(record.get("certificates", {})),
+                    _list_to_cell(record.get("it_certs", [])),
+                    record.get("missing_skills_count", 0),
+                    record.get("score", 0),
+                    record.get("outcome", ""),
+                    record.get("timestamp", ""),
+                ]
+                f.write(_row_to_line(row) + "\n")
+    except Exception as e:
+        logger.error(f"Failed to save records to {path}: {e}")
