@@ -12,6 +12,9 @@ Responsibilities:
 """
 import os
 import shutil
+
+import ai_manager
+import logic_manager
 import data_manager
 
 RESUME_FOLDER = "./resumes"
@@ -48,7 +51,6 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
-"""Jun Kang's part"""
 def _prompt_menu_choice():
     """Prints the menu and validates the user's choice. Re-prompts on invalid input."""
     while True:
@@ -63,20 +65,25 @@ def _prompt_menu_choice():
         print("[!] Invalid choice. Please enter 1, 2, or 3.")
 
 def handle_scan_resume():
-    """Placeholder - the full pipeline is wired in during integration."""
+    """Full pipeline: I/O Manager -> AI Manager -> Logic Manager -> Data Manager."""
     resume_paths = _get_resume_paths()
     if not resume_paths:
         return
 
     print(f"Scanning {len(resume_paths)} resume(s)...")
-    print("[DEBUG-TEMP] AI step not wired up yet")
+    ai_records = ai_manager.process_resume_batch(resume_paths)
+    print(f"[DEBUG-TEMP] AI returned {len(ai_records)} record(s)")
+
+    if not ai_records:
+        print("[!] AI Manager returned no usable records. Nothing saved.")
+        return
 
 def handle_view_summary():
     """Loads all saved records (across all runs) and prints them."""
     records = data_manager.load_records()
     print(f"[DEBUG-TEMP] loaded {len(records)} record(s) from storage")
     _print_table(records)
-    
+
 def run():
     """Main menu loop."""
     while True:
