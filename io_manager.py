@@ -86,7 +86,7 @@ def handle_scan_resume():
     data_manager.save_records(graded_records)
 
     print(f"Processed {len(graded_records)} resume(s).")
-    _print_table(graded_records)
+    _print_table(data_manager.load_records())
 
 def handle_view_summary():
     """Loads all saved records (across all runs) and prints them."""
