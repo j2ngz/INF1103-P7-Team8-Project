@@ -72,7 +72,6 @@ def handle_scan_resume():
 
     print(f"Scanning {len(resume_paths)} resume(s)...")
     ai_records = ai_manager.process_resume_batch(resume_paths)
-    print(f"[DEBUG-TEMP] AI returned {len(ai_records)} record(s)")
 
     if not ai_records:
         print("[!] AI Manager returned no usable records. Nothing saved.")
@@ -82,7 +81,6 @@ def handle_scan_resume():
     _move_scanned_resumes(RESUME_FOLDER, scanned_filenames)
 
     graded_records = logic_manager.evaluate_batch(ai_records)
-    print("[DEBUG-TEMP] graded:", [(g["name"], g["score"], g["outcome"]) for g in graded_records])
     data_manager.save_records(graded_records)
 
     print(f"Processed {len(graded_records)} resume(s).")
@@ -91,7 +89,6 @@ def handle_scan_resume():
 def handle_view_summary():
     """Loads all saved records (across all runs) and prints them."""
     records = data_manager.load_records()
-    print(f"[DEBUG-TEMP] loaded {len(records)} record(s) from storage")
     _print_table(records)
 
 def run():
@@ -162,16 +159,5 @@ def _print_table(records):
     print("=" * total_w)
     print()
 
-# [DEBUG-TEMP] test the move using a throw-away folder - remove later
 if __name__ == "__main__":
-     # [DEBUG-TEMP] fake records to preview the table 
-    FAKE_RECORDS = [
-        {"id": "01", "name": "Alice Tan", "score": 8.4, "outcome": "Accepted",
-         "missing_skills_count": 1, "it_certs": ["aws certified solutions architect"]},
-        {"id": "02", "name": "Bob Lim", "score": 5.6, "outcome": "Flagged",
-         "missing_skills_count": 5, "it_certs": ["comptia security+"]},
-        {"id": "03", "name": "Alexandria Montgomery-Featherstonehaugh", "score": 2.1,
-         "outcome": "Rejected", "missing_skills_count": 9, "it_certs": []},
-    ]
-    _print_table(FAKE_RECORDS)  
     run()
