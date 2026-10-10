@@ -111,10 +111,6 @@ def _print_table(records):
         print("\nNo records to display.\n")
         return
 
-    if not records:
-        print("\nNo records to display.\n")
-        return
-
     headers = ["ID", "Name", "Score", "Outcome", "Notes"]
     max_name_w = 28
 
@@ -125,11 +121,11 @@ def _print_table(records):
         score = f"{r.get('score', 0)}/10"
         outcome = str(r.get("outcome", ""))
         if outcome == "Flagged":
-               missing_count = r.get("missing_skills_count", 0)
-               certs_count = len(r.get("it_certs", []))
-               notes = f"{missing_count} skill(s) missing, {certs_count} IT cert(s)"
+            missing_count = r.get("missing_skills_count", 0)
+            certs_count = len(r.get("it_certs", []))
+            notes = f"{missing_count} skill(s) missing, {certs_count} IT cert(s)"
         else:
-               notes = ""
+            notes = ""
         rows.append([rid, name, score, outcome, notes])
 
     # Column widths: fit the header and the widest value in that column.
