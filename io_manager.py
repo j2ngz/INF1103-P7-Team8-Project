@@ -96,6 +96,64 @@ def handle_view_summary():
     records = data_manager.load_records()
     _print_table(records)
 
+def handle_filter_records():
+    """Prompts user for filtering options, filters saved records, and prints the result table."""
+    records = data_manager.load_records()
+    if not records:
+        print("\n[!] No records found in storage to filter.")
+        return
+
+    print("\n--- Filter Records ---")
+    
+    outcome = None
+    valid_outcomes = {"accepted", "flagged", "rejected"}
+    while True:
+        outcome_input = input("Filter by outcome (Accepted/Flagged/Rejected) [Leave blank to skip]: ").strip().lower()
+        if not outcome_input:
+            break
+        if outcome_input in valid_outcomes:
+            # Capitalize nicely for display/matching
+            outcome = outcome_input.capitalize()
+            break
+        print("[!] Invalid outcome. Please enter Accepted, Flagged, or Rejected (or leave blank).")
+
+    min_score = None
+    while True:
+        min_score_input = input("Enter minimum score (0-10) [Leave blank to skip]: ").strip()
+        if not min_score_input:
+            break
+        try:
+            min_score = float(min_score_input)
+            if 0 <= min_score <= 10:
+                break
+            print("[!] Score must be between 0 and 10.")
+        except ValueError:
+            print("[!] Invalid number. Please enter a valid numeric score (e.g., 7.5).")
+
+    max_score = None
+    while True:
+        max_score_input = input("Enter maximum score (0-10) [Leave blank to skip]: ").strip()
+        if not max_score_input:
+            break
+        try:
+            max_score = float(max_score_input)
+            if 0 <= max_score <= 10:
+                if min_score is not None and max_score < min_score:
+                    print(f"[!] Maximum score cannot be less than minimum score ({min_score}).")
+                    continue
+                break
+            print("[!] Score must be between 0 and 10.")
+        except ValueError:
+            print("[!] Invalid number. Please enter a valid numeric score (e.g., 9.0).")
+
+    filtered = data_manager.filter_records(
+        records, 
+        outcome=outcome, 
+        min_score=min_score, 
+        max_score=max_score
+    )
+    
+    _print_table(filtered)
 
 def run():
     """Main menu loop."""
@@ -107,6 +165,8 @@ def run():
         elif choice == "2":
             handle_view_summary()
         elif choice == "3":
+            handle_filter_records()
+        elif choice == "4":
             print("Goodbye!")
             break
 

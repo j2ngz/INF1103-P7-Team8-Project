@@ -102,11 +102,6 @@ def _next_id(path):
 
 # Appends a batch of records to csv database, writing headers if needed and using sequential IDs
 def save_records(records, path=CSV_FILE):
-    """
-    Appends a batch of graded records to the file, assigning each a
-    sequential, zero-padded id that continues from the existing data.
-    Writes a '||'-separated header line if the file doesn't exist yet.
-    """
     file_exists = os.path.exists(path)
     start_id = _next_id(path)
 
@@ -133,14 +128,6 @@ def save_records(records, path=CSV_FILE):
 
 # Filters records by optional outcome, minimum score, and maximum score combined with AND logic
 def filter_records(records, outcome=None, min_score=None, max_score=None):
-    """
-    At least one filter/query function, as required.
-    All arguments are optional and combine with AND logic.
-
-    Example:
-        flagged = filter_records(records, outcome="Flagged")
-        strong = filter_records(records, min_score=7)
-    """
     result = records
     if outcome is not None:
         result = [r for r in result if r["outcome"].lower() == outcome.lower()]
