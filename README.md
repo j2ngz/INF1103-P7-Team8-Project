@@ -86,13 +86,17 @@ Menu:
 === Resume Screening System ===
 1. Scan Resume
 2. View Summary
-3. Exit
+3. Filter Records
+4. Exit
 ```
 
 - **Scan Resume** sends every PDF in `resumes/` to the AI in one batch, grades each one,
   saves the results and prints the summary table. Resumes that were processed
   successfully are moved to `scannedResume/`, which is created if it does not exist.
 - **View Summary** prints every saved record from all earlier runs.
+- **Filter Records** asks for an outcome (Accepted, Flagged or Rejected), a minimum score
+  and a maximum score. Each can be left blank to skip. It then prints only the saved
+  records that match all the filters you gave. Invalid input asks again.
 - **Exit** quits.
 
 Example summary table:
@@ -213,28 +217,31 @@ will not load correctly.
 | Missing or invalid fields in an AI record | The AI left out a field or returned text where a number belongs | Field check and type check before scoring | Skips that record and logs it | The resume is not graded and stays in `resumes/` |
 | API call failed | No internet, timeout, rate limit, service down | Exception from the API call, or no records returned | Retries up to 5 times with a growing wait, then prints an error, skips grading and saving, and does not move any files | The user is told the AI returned no usable records. Resumes remain in `resumes/` so the user can scan again |
 
-Menu input is also validated: anything other than 1, 2 or 3 asks again.
+Menu input is also validated: anything other than 1, 2, 3 or 4 asks again.
 
 ## Automated tests
 
-`test_logic_manager.py` tests the `logic_manager.py` functions on their own, using
+`tests/test_logic_manager.py` tests the `logic_manager.py` functions on their own, using
 hardcoded sample AI responses. It never imports `ai_manager`, so it needs no API key, no
-internet and no resume files.
+internet and no resume files. Run it from the project folder:
 
 ```
-python test_logic_manager.py
+python tests/test_logic_manager.py
 ```
 
-You should see one `PASS` line per test and then `35 passed, 0 failed, 35 total`. The
+You should see one `PASS` line per test and then `40 passed, 0 failed, 40 total`. The
 script exits with code 0 when everything passes and 1 if anything fails. If you have
-pytest installed, `python -m pytest test_logic_manager.py -v` also works. If you change
-the weights, caps or thresholds in `logic_manager.py`, update the expected scores in the
-tests too.
+pytest installed, `python -m pytest tests/test_logic_manager.py -v` also works. If you
+change the weights, caps or thresholds in `logic_manager.py`, update the expected scores
+in the tests too.
 
 ## Running with Docker
 
-The `Dockerfile` copies the four modules, `requirements.txt`, the `.env` file (with the
-API key) and the demo `resumes/` folder into a `python:3.14-slim` image.
+There are two separate Dockerfiles. Run every command from the project folder.
+
+**1. The app (`Dockerfile`).** It copies the four modules, `requirements.txt`, the `.env`
+file (with the API key) and the demo `resumes/` folder into a `python:3.14-slim` image,
+installs `google-genai` and starts the program.
 
 ```
 docker build -t resume-screening .
@@ -244,12 +251,15 @@ docker run -it --rm resume-screening
 `-it` is needed because the menu waits for keyboard input. Results and moved files stay
 inside the container and are lost when it exits, which resets the demo each time.
 
-To run only the tests in the container (the Dockerfile must also contain
-`COPY test_logic_manager.py .`):
+**2. The tests (`tests/Dockerfile`).** It copies only `logic_manager.py` and the test
+file. There is no API library, no key and no resumes in this image.
 
 ```
-docker run --rm resume-screening python test_logic_manager.py
+docker build -f tests/Dockerfile -t resume-tests .
+docker run --rm resume-tests
 ```
+
+You should see `40 passed, 0 failed, 40 total`.
 
 ## Project layout
 
@@ -262,8 +272,13 @@ INF1103_Team8/
 ├── requirements.txt       job criteria (not pip requirements)
 ├── .env                   GEMINI_API_KEY (not pushed to GitHub)
 ├── Dockerfile             builds and runs the app
-├── test_logic_manager.py  automated tests
+├── .dockerignore          files Docker leaves out of the app image
+├── .gitignore             files git leaves out (.env, .venv)
 ├── resumes/               PDFs waiting to be scanned
 ├── scannedResume/         PDFs already processed
-└── resume_records.csv     saved results (created on first scan)
+├── resume_records.csv     saved results (created on first scan)
+└── tests/
+    ├── test_logic_manager.py  automated tests
+    ├── Dockerfile             builds and runs only the tests
+    └── README.md              how to run the tests
 ```
