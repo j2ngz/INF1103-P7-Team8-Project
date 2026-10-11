@@ -54,18 +54,20 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
 
+
 def _prompt_menu_choice():
     """Prints the menu and validates the user's choice. Re-prompts on invalid input."""
     while True:
         print("\n=== Resume Screening System ===")
         print("1. Scan Resume")
         print("2. View Summary")
-        print("3. Exit")
-        choice = input("Select an option (1-3): ").strip()
+        print("3. Filter Records")
+        print("4. Exit")
+        choice = input("Select an option (1-4): ").strip()
 
-        if choice in ("1", "2", "3"):
+        if choice in ("1", "2", "3", "4"):
             return choice
-        print("[!] Invalid choice. Please enter 1, 2, or 3.")
+        print("[!] Invalid choice. Please enter 1, 2, 3, or 4.")
 
 
 def handle_scan_resume():
