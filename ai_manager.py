@@ -50,7 +50,7 @@ if not API_KEY:
 _client = genai.Client(api_key=API_KEY)
 # -----------------------------------------
 
-MODEL_NAME = "gemini-3.5-flash-lite"  # update if your team switches models
+MODEL_NAME = "gemini-3.5-flash-lite"  # Model used for resume parsing.
 MAX_RETRIES = 5
 
 REQUIRED_FIELDS = {"filename", "name", "skills", "experience_by_field", "certificates_by_industry"}
@@ -70,10 +70,15 @@ def _build_prompt(filenames):
         "candidate has worked in to their total years of experience in that field, e.g. "
         '{"IT": 4, "Finance": 1}. Use your best judgement to categorize roles into fields '
         "(e.g. IT, Finance, Marketing, Healthcare, Education, Sales, Engineering, Business). "
+        "Software, data, analytics, business intelligence, cloud, cybersecurity and other "
+        "technology roles must ALL be filed under the single field name \"IT\" - do not invent "
+        "separate names such as \"Data Analytics\" or \"Software\". "
         "If experience is not clearly tied to a field, categorize it under \"General\".\n"
         "  - certificates_by_industry: an object mapping each industry to a LIST of the "
         'exact certificate names the candidate holds in that industry, e.g. '
         '{"IT": ["AWS Certified Solutions Architect", "CompTIA Security+"], "FnB": ["ServSafe"]}. '
+        "Certificates in software, data, analytics, business intelligence, cloud or "
+        "cybersecurity (for example Tableau, Power BI, AWS, Azure, CompTIA) must be listed under \"IT\". "
         "Use an empty object {} if no certificates are mentioned.\n\n"
         "Return ONLY a JSON array, one object per resume, with exactly these five keys. "
         "Do not include any explanation, markdown formatting, or extra text - JSON only."
