@@ -165,6 +165,8 @@ def run():
         elif choice == "2":
             handle_view_summary()
         elif choice == "3":
+            handle_filter_records()
+        elif choice == "4":
             print("Goodbye!")
             break
 
