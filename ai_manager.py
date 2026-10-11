@@ -13,23 +13,40 @@ Responsibilities:
 Zero domain logic lives here - only API interaction and response plumbing.
 The AI never sees job requirements; it only extracts facts from each resume.
 
-NOTE: API_KEY is hardcoded below for LOCAL USE ONLY.
-Do NOT commit/push this file to GitHub with a real key in it.
+NOTE: The API key is read from the GEMINI_API_KEY line in the .env file.
 """
 
 import os
 import json
 import time
 import logging
-from typing import Any
 
 from google import genai
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AIManager")
 
-# --- Hardcoded for local use only ---
-API_KEY = "API KEY"
+
+
+def _load_env_file(path):
+    # Reads KEY=VALUE lines from a .env file into os.environ (no extra package needed).
+    # A variable that is already set (e.g. by Docker) is not overwritten.
+    if not os.path.exists(path):
+        return
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+# --- API key comes from the .env file next to this script ---
+_load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not API_KEY:
+    raise RuntimeError("GEMINI_API_KEY is not set. Add it to the .env file (see README).")
 _client = genai.Client(api_key=API_KEY)
 # -----------------------------------------
 
@@ -39,7 +56,7 @@ MAX_RETRIES = 5
 REQUIRED_FIELDS = {"filename", "name", "skills", "experience_by_field", "certificates_by_industry"}
 
 
-def _build_prompt(filenames: list[str]) -> str:
+def _build_prompt(filenames):
     #Builds the instruction text sent alongside the uploaded resume files.
     file_list = "\n".join(f"- {name}" for name in filenames)
     return (
@@ -63,7 +80,7 @@ def _build_prompt(filenames: list[str]) -> str:
     )
 
 
-def _upload_resumes(resume_paths: list[str]) -> list[Any]:
+def _upload_resumes(resume_paths):
     #Uploads each resume file to the API's file store and returns the file handles.
     uploaded = []
     for path in resume_paths:
@@ -75,7 +92,7 @@ def _upload_resumes(resume_paths: list[str]) -> list[Any]:
     return uploaded
 
 
-def _validate_record(record: dict[str, Any]) -> bool:
+def _validate_record(record):
     #Checks a single parsed record has the required fields and correct types.
     if not isinstance(record, dict):
         return False
@@ -104,8 +121,8 @@ def _validate_record(record: dict[str, Any]) -> bool:
     return True
 
 
-def _parse_response(raw_text: str) -> list[dict[str, Any]] | None:
-    """Parses the model's raw text output into a list of dicts. Returns None on failure."""
+def _parse_response(raw_text):
+    #Parses the model's raw text output into a list of dicts. Returns None on failure.
     cleaned = raw_text.strip()
     if cleaned.startswith("```"):
         cleaned = cleaned.strip("`")
@@ -120,7 +137,7 @@ def _parse_response(raw_text: str) -> list[dict[str, Any]] | None:
     return data
 
 
-def process_resume_batch(resume_paths: list[str]) -> list[dict[str, Any]]:
+def process_resume_batch(resume_paths):
     if not resume_paths:
         return []
 

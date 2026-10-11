@@ -2,7 +2,7 @@
 
 **INF1103 Programming Fundamentals with DevOps — Class LAB-P7, Group 8**
 
-Team: Tan Bin Qian, Kieran Lee Teck Hong, Tan Jun Kang, Tay Jing Ni, Liu JiaQi
+Team: Tan Bin Qian, Kieran Lee Teck Hong, Tan Jun Kang, Tay Jing Ni, Liu Jia Qi
 
 ## Introduction
 
@@ -14,7 +14,7 @@ experience per field, certificates per industry). The application then scores ea
 resume against a job requirements file and saves the result to a flat file so results can
 be reviewed in later runs.
 
-The implementation is 100% procedural (only functions, no classes) and consists of four
+The implementation is 100% procedural and consists of four
 modules that form a pipeline:
 
 ```
@@ -58,14 +58,14 @@ currently change the outcome.
    ```
    pip install google-genai
    ```
-2. Put your Gemini API key in `ai_manager.py`. It is hardcoded for local use, not read
-   from an environment variable:
-   ```python
-   API_KEY = "PASTE_YOUR_ACTUAL_KEY_HERE"
+2. Put your Gemini API key in the `.env` file, in the same folder as the `.py` files:
    ```
-   **Never commit or push a real key to GitHub.** Before every `git push`, check that
-   `API_KEY` is back to the placeholder. If a key was ever pushed, revoke it and create a
-   new one.
+   GEMINI_API_KEY=your_key_here
+   ```
+   `ai_manager.py` reads the key from this file when it starts, so the key is not typed
+   into the code. If the key is missing, the program stops with a message saying so.
+   **Never push `.env` with a real key to GitHub.** It is listed in `.gitignore`. If a
+   key was ever pushed, revoke it and create a new one.
 3. Put the candidate PDFs in a folder named `resumes/` next to the `.py` files. Only `.pdf`
    files are read.
 4. Edit `requirements.txt` to set the job criteria:
@@ -115,6 +115,11 @@ requirements in a text file. When a scan is requested, the system sends all the 
 to an AI service (the Google Gemini API), which extracts the details of each candidate.
 The system then scores them, saves the results, and shows them as a summary table when
 the recruiter asks for it.
+
+The report has two figures:
+- **Figure 1** is the Level 0 context diagram, with the whole system as one process.
+- **Figure 2** is the Level 1 diagram, with seven processes, each owned by one of the four
+  managers.
 
 ### External entities
 
@@ -228,8 +233,8 @@ tests too.
 
 ## Running with Docker
 
-The `Dockerfile` copies the four modules, `requirements.txt` and the demo `resumes/`
-folder into a `python:3.14-slim` image.
+The `Dockerfile` copies the four modules, `requirements.txt`, the `.env` file (with the
+API key) and the demo `resumes/` folder into a `python:3.14-slim` image.
 
 ```
 docker build -t resume-screening .
@@ -255,6 +260,8 @@ INF1103_Team8/
 ├── logic_manager.py       scoring and outcomes
 ├── data_manager.py        saving and loading results
 ├── requirements.txt       job criteria (not pip requirements)
+├── .env                   GEMINI_API_KEY (not pushed to GitHub)
+├── Dockerfile             builds and runs the app
 ├── test_logic_manager.py  automated tests
 ├── resumes/               PDFs waiting to be scanned
 ├── scannedResume/         PDFs already processed
