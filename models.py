@@ -60,3 +60,25 @@ class ResumeData:
 
     def __repr__(self):
         return f"ResumeData(filename={self._filename!r}, name={self._name!r})"
+
+class ResumeBatch:
+
+    def __init__(self, items=None):
+        self._items = list(items) if items else []
+
+    def add(self, item):
+        self._items.append(item)
+
+    @property
+    def filenames(self):
+        return [item.filename for item in self._items if item.filename]
+
+    def is_empty(self):
+        return not self._items
+
+    def __len__(self):
+        return len(self._items)
+
+    def __iter__(self):
+        return iter(self._items)
+
