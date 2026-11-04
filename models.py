@@ -82,3 +82,82 @@ class ResumeBatch:
     def __iter__(self):
         return iter(self._items)
 
+class ResumeRecord:
+
+    REVIEWABLE_DECISIONS = (Outcome.ACCEPTED, Outcome.REJECTED)
+
+    def __init__(self, name, skills, it_experience_years, certificates, it_certs,
+                 missing_skills_count, score, outcome, timestamp, record_id=None,
+                 review_decision=None, review_note="", reviewed_at=None):
+        self._id = record_id
+        self._name = name
+        self._skills = list(skills)
+        self._it_experience_years = it_experience_years
+        self._certificates = {k: list(v) for k, v in certificates.items()}
+        self._it_certs = list(it_certs)
+        self._missing_skills_count = int(missing_skills_count)
+        self._score = float(score)
+        self._outcome = Outcome.parse(outcome) if not isinstance(outcome, Outcome) else outcome
+        if self._outcome is None:
+            raise ValueError(f"Unknown outcome: {outcome!r}")
+        self._timestamp = timestamp
+        self._review_decision = None
+        self._review_note = ""
+        self._reviewed_at = None
+        if review_decision:
+            decision = review_decision if isinstance(review_decision, Outcome) else Outcome.parse(review_decision)
+            if decision not in self.REVIEWABLE_DECISIONS:
+                raise ValueError(f"Invalid review decision: {review_decision!r}")
+            self._review_decision = decision
+            self._review_note = review_note or ""
+            self._reviewed_at = reviewed_at
+
+    @property
+    def id(self):
+        return self._id
+
+    def assign_id(self, record_id):
+        """Gives the record its id. An id can only be assigned once."""
+        if self._id is not None:
+            raise ValueError("Record already has an id")
+        self._id = int(record_id)
+
+    @property
+    def display_id(self):
+        return "" if self._id is None else f"{self._id:02d}"
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def skills(self):
+        return list(self._skills)
+
+    @property
+    def it_experience_years(self):
+        return self._it_experience_years
+
+    @property
+    def certificates(self):
+        return {k: list(v) for k, v in self._certificates.items()}
+
+    @property
+    def it_certs(self):
+        return list(self._it_certs)
+
+    @property
+    def missing_skills_count(self):
+        return self._missing_skills_count
+
+    @property
+    def score(self):
+        return self._score
+
+    @property
+    def outcome(self):
+        return self._outcome
+
+    @property
+    def timestamp(self):
+        return self._timestamp
