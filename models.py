@@ -117,7 +117,7 @@ class ResumeRecord:
         return self._id
 
     def assign_id(self, record_id):
-        """Gives the record its id. An id can only be assigned once."""
+        """Gives the record its id. Id can only be assigned once."""
         if self._id is not None:
             raise ValueError("Record already has an id")
         self._id = int(record_id)
@@ -180,7 +180,7 @@ class ResumeRecord:
 
     @property
     def needs_review(self):
-        """True for a Flagged record nobody has reviewed yet."""
+        """True for a Flagged record that nobody has reviewed yet."""
         return self._outcome is Outcome.FLAGGED and not self.is_reviewed
 
     @property
@@ -191,9 +191,7 @@ class ResumeRecord:
     def apply_review(self, decision, note, reviewed_at):
         """
         Records a human decision on a Flagged record.
-
-        Raises ValueError when the record is not Flagged, was already reviewed, or
-        the decision is not Accepted/Rejected.
+        Raises error when the record is not Flagged, was already reviewed, or the decision is not Accepted/Rejected.
         """
         if self._outcome is not Outcome.FLAGGED:
             raise ValueError("Only Flagged records can be reviewed")
