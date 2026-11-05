@@ -161,3 +161,60 @@ class ResumeRecord:
     @property
     def timestamp(self):
         return self._timestamp
+
+    @property
+    def review_decision(self):
+        return self._review_decision
+
+    @property
+    def review_note(self):
+        return self._review_note
+
+    @property
+    def reviewed_at(self):
+        return self._reviewed_at
+
+    @property
+    def is_reviewed(self):
+        return self._review_decision is not None
+
+    @property
+    def needs_review(self):
+        """True for a Flagged record nobody has reviewed yet."""
+        return self._outcome is Outcome.FLAGGED and not self.is_reviewed
+
+    @property
+    def final_outcome(self):
+        """The reviewer's decision when there is one, otherwise the original outcome."""
+        return self._review_decision if self.is_reviewed else self._outcome
+
+    def apply_review(self, decision, note, reviewed_at):
+        """
+        Records a human decision on a Flagged record.
+
+        Raises ValueError when the record is not Flagged, was already reviewed, or
+        the decision is not Accepted/Rejected.
+        """
+        if self._outcome is not Outcome.FLAGGED:
+            raise ValueError("Only Flagged records can be reviewed")
+        if self.is_reviewed:
+            raise ValueError("This record has already been reviewed")
+        decision = decision if isinstance(decision, Outcome) else Outcome.parse(decision)
+        if decision not in self.REVIEWABLE_DECISIONS:
+            raise ValueError("Review decision must be Accepted or Rejected")
+        self._review_decision = decision
+        self._review_note = (note or "").strip()
+        self._reviewed_at = reviewed_at
+
+    def without_id(self):
+        """A copy of this record with no id, ready to be added to another repository."""
+        return ResumeRecord(
+            name=self._name, skills=self._skills, it_experience_years=self._it_experience_years,
+            certificates=self._certificates, it_certs=self._it_certs,
+            missing_skills_count=self._missing_skills_count, score=self._score,
+            outcome=self._outcome, timestamp=self._timestamp,
+            review_decision=self._review_decision, review_note=self._review_note,
+            reviewed_at=self._reviewed_at)
+
+    def __repr__(self):
+        return f"ResumeRecord(id={self._id}, name={self._name!r}, score={self._score}, outcome={self._outcome.value})"
