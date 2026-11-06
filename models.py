@@ -18,8 +18,7 @@ class Outcome(str, Enum):
         return None
 
 class ResumeData:
-    #What the AI Read from a resume. Immutable after creation.
-
+    # What the AI Read from a resume
     def __init__(self, filename, name, skills, experience_by_field, certificates_by_industry):
         self._filename = filename
         self._name = name
@@ -29,7 +28,7 @@ class ResumeData:
 
     @classmethod
     def from_dict(cls, data):
-        """Builds a ResumeData from an (already validated) AI response dictionary."""
+        # Builds a ResumeData from an AI response dictionary.
         return cls(
             filename=data["filename"],
             name=data["name"],
@@ -117,7 +116,7 @@ class ResumeRecord:
         return self._id
 
     def assign_id(self, record_id):
-        """Gives the record its id. Id can only be assigned once."""
+        # Gives the record its id
         if self._id is not None:
             raise ValueError("Record already has an id")
         self._id = int(record_id)
@@ -180,19 +179,13 @@ class ResumeRecord:
 
     @property
     def needs_review(self):
-        """True for a Flagged record that nobody has reviewed yet."""
         return self._outcome is Outcome.FLAGGED and not self.is_reviewed
 
     @property
     def final_outcome(self):
-        """The reviewer's decision when there is one, otherwise the original outcome."""
         return self._review_decision if self.is_reviewed else self._outcome
 
     def apply_review(self, decision, note, reviewed_at):
-        """
-        Records a human decision on a Flagged record.
-        Raises error when the record is not Flagged, was already reviewed, or the decision is not Accepted/Rejected.
-        """
         if self._outcome is not Outcome.FLAGGED:
             raise ValueError("Only Flagged records can be reviewed")
         if self.is_reviewed:
@@ -205,7 +198,6 @@ class ResumeRecord:
         self._reviewed_at = reviewed_at
 
     def without_id(self):
-        """A copy of this record with no id, ready to be added to another repository."""
         return ResumeRecord(
             name=self._name, skills=self._skills, it_experience_years=self._it_experience_years,
             certificates=self._certificates, it_certs=self._it_certs,
