@@ -1,21 +1,35 @@
-"""
-I/O Manager
------------
-All boundaries between system and user.
-
-Responsibilities:
-  - Collect structured input from the user via the terminal
-  - Collect / print summary views
-  - Validate user input - reject and re-prompt on bad data
-  - All print() calls in the system live here and nowhere else
-  - Format individual records and lists
-"""
 import os
 import shutil
+from collections import namedtuple
 
-import ai_manager
-import logic_manager
-import data_manager
+from models import Outcome
+
+FilterCriteria = namedtuple("FilterCriteria", ["outcome", "min_score", "max_score"])
+
+
+class IOManager:
+    MENU_OPTIONS = (
+        ("1", "Scan Resume"),
+        ("2", "View Summary"),
+        ("3", "Filter Records"),
+        ("4", "Review Flagged Candidates"),
+        ("5", "Delete Record"),
+        ("6", "Exit"),
+    )
+    TABLE_HEADERS = ["ID", "Name", "Score", "Outcome", "Final", "Notes"]
+    MAX_NAME_WIDTH = 28
+    MAX_NOTE_WIDTH = 44
+
+    def __init__(self, input_fn=input, print_fn=print):
+        self._input = input_fn
+        self._print = print_fn
+
+    # messages 
+    def show(self, message):
+        self._print(message)
+
+    def warn(self, message):
+        self._print(f"[!] {message}")
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
