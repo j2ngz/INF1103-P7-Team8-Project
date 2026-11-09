@@ -106,7 +106,41 @@ class IOManager:
         if record.outcome is Outcome.FLAGGED:
             return f"{record.missing_skills_count} skill(s) missing, {len(record.it_certs)} IT cert(s)"
         return ""
-    
+
+    def show_records(self, records, title="Resume Screening Summary"):
+        #Prints a boxed table: ID, Name, Score, Outcome, Final, Notes
+        if not records:
+            self._print("\nNo records to display.\n")
+            return
+
+        headers = self.TABLE_HEADERS
+        rows = [[
+            r.display_id,
+            self.truncate(r.name, self.MAX_NAME_WIDTH),
+            f"{r.score}/10",
+            r.outcome.value,
+            r.final_outcome.value,
+            self.note_for(r),
+        ] for r in records]
+
+        widths = [max(len(headers[i]), max(len(row[i]) for row in rows)) for i in range(len(headers))]
+
+        def format_row(cols):
+            return "| " + " | ".join(f"{c:<{widths[i]}}" for i, c in enumerate(cols)) + " |"
+
+        separator = "|" + "|".join("-" * (w + 2) for w in widths) + "|"
+        total_width = len(separator)
+        self._print()
+        self._print("=" * total_width)
+        self._print(f" {title} — Total Records: {len(records)}")
+        self._print("=" * total_width)
+        self._print(format_row(headers))
+        self._print(separator)
+        for row in rows:
+            self._print(format_row(row))
+        self._print("=" * total_width)
+        self._print()
+
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
@@ -144,54 +178,3 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
-
-def _print_table(records):
-    """
-    Formats and prints a clean, boxed summary table: ID, Name, Score, Outcome,
-    Notes - all in one row per candidate. Notes is only populated for Flagged
-    resumes (missing skill count + IT cert count); blank for Accepted/Rejected.
-    """
-    if not records:
-        print("\nNo records to display.\n")
-        return
-
-    headers = ["ID", "Name", "Score", "Outcome", "Notes"]
-    max_name_w = 28
-
-    rows = []
-    for r in records:
-        rid = str(r.get("id", ""))
-        name = _truncate(str(r.get("name", "")), max_name_w)
-        score = f"{r.get('score', 0)}/10"
-        outcome = str(r.get("outcome", ""))
-        if outcome == "Flagged":
-            missing_count = r.get("missing_skills_count", 0)
-            certs_count = len(r.get("it_certs", []))
-            notes = f"{missing_count} skill(s) missing, {certs_count} IT cert(s)"
-        else:
-            notes = ""
-        rows.append([rid, name, score, outcome, notes])
-
-    # Column widths: fit the header and the widest value in that column.
-    widths = [
-        max(len(headers[i]), max((len(row[i]) for row in rows), default=0))
-        for i in range(len(headers))
-    ]
-
-    def format_row(cols):
-        return "| " + " | ".join(f"{c:<{widths[i]}}" for i, c in enumerate(cols)) + " |"
-
-    separator = "|" + "|".join("-" * (w + 2) for w in widths) + "|"
-    total_w = len(separator)
-
-    print()
-    print("=" * total_w)
-    print(f" Resume Screening Summary — Total Records: {len(records)}")
-    print("=" * total_w)
-    print(format_row(headers))
-    print(separator)
-    for row in rows:
-        print(format_row(row))
-
-    print("=" * total_w)
-    print()
