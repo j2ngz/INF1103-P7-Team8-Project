@@ -44,6 +44,43 @@ class IOManager:
                 return choice
             self.warn(f"Invalid choice. Please enter a number from 1 to {last}.")
 
+    # prompts 
+    def prompt_filter_criteria(self):
+        #Asks for an outcome and a score range. Each can be left blank to skip
+        self._print("\n--- Filter Records ---")
+        outcome = None
+        while True:
+            text = self._input("Filter by outcome (Accepted/Flagged/Rejected) [Leave blank to skip]: ").strip()
+            if not text:
+                break
+            outcome = Outcome.parse(text)
+            if outcome is not None:
+                break
+            self.warn("Invalid outcome. Please enter Accepted, Flagged, or Rejected (or leave blank).")
+
+        min_score = self.prompt_score("Enter minimum score (0-10) [Leave blank to skip]: ")
+        max_score = None
+        while True:
+            max_score = self.prompt_score("Enter maximum score (0-10) [Leave blank to skip]: ")
+            if max_score is not None and min_score is not None and max_score < min_score:
+                self.warn(f"Maximum score cannot be less than minimum score ({min_score}).")
+                continue
+            break
+        return FilterCriteria(outcome, min_score, max_score)
+
+    def prompt_score(self, question):
+        while True:
+            text = self._input(question).strip()
+            if not text:
+                return None
+            try:
+                value = float(text)
+            except ValueError:
+                self.warn("Invalid number. Please enter a valid numeric score (e.g., 7.5).")
+                continue
+            if 0 <= value <= 10:
+                return value
+            self.warn("Score must be between 0 and 10.")
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
@@ -82,64 +119,7 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
 
-def handle_filter_records():
-    """Prompts user for filtering options, filters saved records, and prints the result table."""
-    records = data_manager.load_records()
-    if not records:
-        print("\n[!] No records found in storage to filter.")
-        return
 
-    print("\n--- Filter Records ---")
-    
-    outcome = None
-    valid_outcomes = {"accepted", "flagged", "rejected"}
-    while True:
-        outcome_input = input("Filter by outcome (Accepted/Flagged/Rejected) [Leave blank to skip]: ").strip().lower()
-        if not outcome_input:
-            break
-        if outcome_input in valid_outcomes:
-            # Capitalize nicely for display/matching
-            outcome = outcome_input.capitalize()
-            break
-        print("[!] Invalid outcome. Please enter Accepted, Flagged, or Rejected (or leave blank).")
-
-    min_score = None
-    while True:
-        min_score_input = input("Enter minimum score (0-10) [Leave blank to skip]: ").strip()
-        if not min_score_input:
-            break
-        try:
-            min_score = float(min_score_input)
-            if 0 <= min_score <= 10:
-                break
-            print("[!] Score must be between 0 and 10.")
-        except ValueError:
-            print("[!] Invalid number. Please enter a valid numeric score (e.g., 7.5).")
-
-    max_score = None
-    while True:
-        max_score_input = input("Enter maximum score (0-10) [Leave blank to skip]: ").strip()
-        if not max_score_input:
-            break
-        try:
-            max_score = float(max_score_input)
-            if 0 <= max_score <= 10:
-                if min_score is not None and max_score < min_score:
-                    print(f"[!] Maximum score cannot be less than minimum score ({min_score}).")
-                    continue
-                break
-            print("[!] Score must be between 0 and 10.")
-        except ValueError:
-            print("[!] Invalid number. Please enter a valid numeric score (e.g., 9.0).")
-
-    filtered = data_manager.filter_records(
-        records, 
-        outcome=outcome, 
-        min_score=min_score, 
-        max_score=max_score
-    )
-    
-    _print_table(filtered)
 
 
 def _truncate(text, max_len):
