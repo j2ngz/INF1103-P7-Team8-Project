@@ -95,6 +95,18 @@ class IOManager:
     def confirm(self, question):
         return self._input(f"{question} (y/n): ").strip().lower() in ("y", "yes")
 
+    @staticmethod
+    def truncate(text, max_len):
+        return text if len(text) <= max_len else text[: max_len - 1] + "…"
+
+    def note_for(self, record):
+        if record.is_reviewed:
+            note = record.review_note or "(no note)"
+            return self.truncate(f"Reviewed: {note}", self.MAX_NOTE_WIDTH)
+        if record.outcome is Outcome.FLAGGED:
+            return f"{record.missing_skills_count} skill(s) missing, {len(record.it_certs)} IT cert(s)"
+        return ""
+    
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
@@ -131,14 +143,6 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
             shutil.move(src, dst)
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
-
-
-
-
-
-def _truncate(text, max_len):
-    """Truncates text with an ellipsis if it's longer than max_len."""
-    return text if len(text) <= max_len else text[: max_len - 1] + "…"
 
 
 def _print_table(records):
