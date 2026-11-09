@@ -97,3 +97,32 @@ class GeminiClient(AIClient):
         )
         return response.text
 
+# Prompt
+#Prompt used to send the instruction alongside the uploaded resume files.
+def build_prompt(filenames):
+    file_list = "\n".join(f"- {name}" for name in filenames)
+    return (
+        "You are an information extraction engine. You will be given "
+        f"{len(filenames)} resumes as attached files:\n{file_list}\n\n"
+        "For EACH resume, extract:\n"
+        "  - filename: the exact file name of the resume\n"
+        "  - name: the candidate's full name as it appears on the resume\n"
+        "  - skills: a list of technical/professional skills mentioned\n"
+        "  - experience_by_field: an object mapping each professional field/industry the "
+        "candidate has worked in to their total years of experience in that field, e.g. "
+        '{"IT": 4, "Finance": 1}. Use your best judgement to categorize roles into fields '
+        "(e.g. IT, Finance, Marketing, Healthcare, Education, Sales, Engineering, Business). "
+        "Software, data, analytics, business intelligence, cloud, cybersecurity and other "
+        "technology roles must ALL be filed under the single field name \"IT\" - do not invent "
+        "separate names such as \"Data Analytics\" or \"Software\". "
+        "If experience is not clearly tied to a field, categorize it under \"General\".\n"
+        "  - certificates_by_industry: an object mapping each industry to a LIST of the "
+        'exact certificate names the candidate holds in that industry, e.g. '
+        '{"IT": ["AWS Certified Solutions Architect", "CompTIA Security+"], "FnB": ["ServSafe"]}. '
+        "Certificates in software, data, analytics, business intelligence, cloud or "
+        "cybersecurity (for example Tableau, Power BI, AWS, Azure, CompTIA) must be listed under \"IT\". "
+        "Use an empty object {} if no certificates are mentioned.\n\n"
+        "Return ONLY a JSON array, one object per resume, with exactly these five keys. "
+        "Do not include any explanation, markdown formatting, or extra text - JSON only."
+    )
+
