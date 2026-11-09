@@ -31,6 +31,20 @@ class IOManager:
     def warn(self, message):
         self._print(f"[!] {message}")
 
+    def prompt_menu_choice(self):
+        #Prints the menu and reprompts until the user picks a valid option
+        valid = {key for key, _ in self.MENU_OPTIONS}
+        last = self.MENU_OPTIONS[-1][0]
+        while True:
+            self._print("\n=== Resume Screening System ===")
+            for key, label in self.MENU_OPTIONS:
+                self._print(f"{key}. {label}")
+            choice = self._input(f"Select an option (1-{last}): ").strip()
+            if choice in valid:
+                return choice
+            self.warn(f"Invalid choice. Please enter a number from 1 to {last}.")
+
+
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
 SUPPORTED_EXTENSIONS = (".pdf",)
@@ -67,50 +81,6 @@ def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANN
         except Exception as e:
             print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
 
-
-
-def _prompt_menu_choice():
-    """Prints the menu and validates the user's choice. Re-prompts on invalid input."""
-    while True:
-        print("\n=== Resume Screening System ===")
-        print("1. Scan Resume")
-        print("2. View Summary")
-        print("3. Filter Records")
-        print("4. Exit")
-        choice = input("Select an option (1-4): ").strip()
-
-        if choice in ("1", "2", "3", "4"):
-            return choice
-        print("[!] Invalid choice. Please enter 1, 2, 3, or 4.")
-
-
-def handle_scan_resume():
-    """Full pipeline: I/O Manager -> AI Manager -> Logic Manager -> Data Manager."""
-    resume_paths = _get_resume_paths()
-    if not resume_paths:
-        return
-
-    print(f"Scanning {len(resume_paths)} resume(s)...")
-    ai_records = ai_manager.process_resume_batch(resume_paths)
-
-    if not ai_records:
-        print("[!] AI Manager returned no usable records. Nothing saved.")
-        return
-
-    scanned_filenames = [r["filename"] for r in ai_records if r.get("filename")]
-    _move_scanned_resumes(RESUME_FOLDER, scanned_filenames)
-
-    graded_records = logic_manager.evaluate_batch(ai_records)
-    data_manager.save_records(graded_records)
-
-    print(f"Processed {len(graded_records)} resume(s).")
-    _print_table(data_manager.load_records())
-
-
-def handle_view_summary():
-    """Loads all saved records (across all runs) and prints them."""
-    records = data_manager.load_records()
-    _print_table(records)
 
 def handle_filter_records():
     """Prompts user for filtering options, filters saved records, and prints the result table."""
@@ -171,21 +141,6 @@ def handle_filter_records():
     
     _print_table(filtered)
 
-def run():
-    """Main menu loop."""
-    while True:
-        choice = _prompt_menu_choice()
-
-        if choice == "1":
-            handle_scan_resume()
-        elif choice == "2":
-            handle_view_summary()
-        elif choice == "3":
-            handle_filter_records()
-        elif choice == "4":
-            print("Goodbye!")
-            break
-
 
 def _truncate(text, max_len):
     """Truncates text with an ellipsis if it's longer than max_len."""
@@ -242,7 +197,3 @@ def _print_table(records):
 
     print("=" * total_w)
     print()
-
-
-if __name__ == "__main__":
-    run()
