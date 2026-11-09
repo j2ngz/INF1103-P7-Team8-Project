@@ -91,7 +91,10 @@ class IOManager:
             if text.isdigit():
                 return int(text)
             self.warn("Please enter the numeric ID shown in the table.")
-            
+
+    def confirm(self, question):
+        return self._input(f"{question} (y/n): ").strip().lower() in ("y", "yes")
+
 
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
