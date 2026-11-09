@@ -169,21 +169,16 @@ class ResumeFolder:
         ]
 
 
-SCANNED_FOLDER = "./scannedResume"
+    def archive(self, filenames):
+# Moves each file into the scanned folder 
+# File that cannot be moved is skipped and returns a list of filename, error message for the failures
 
-
-def _move_scanned_resumes(resume_folder, scanned_filenames, scanned_folder=SCANNED_FOLDER):
-    """
-    Moves each successfully processed resume (by filename) out of the resume
-    folder and into scanned_folder, creating scanned_folder if it doesn't exist.
-    Resumes that failed AI validation are left in place.
-    """
-    os.makedirs(scanned_folder, exist_ok=True)
-    for filename in scanned_filenames:
-        src = os.path.join(resume_folder, filename)
-        dst = os.path.join(scanned_folder, filename)
-        try:
-            shutil.move(src, dst)
-        except Exception as e:
-            print(f"[!] Could not move '{filename}' to '{scanned_folder}': {e}")
-
+        failures = []
+        os.makedirs(self._scanned_dir, exist_ok=True)
+        for name in filenames:
+            name = os.path.basename(name)
+            try:
+                shutil.move(os.path.join(self._resume_dir, name), os.path.join(self._scanned_dir, name))
+            except Exception as e:
+                failures.append((name, str(e)))
+        return failures
