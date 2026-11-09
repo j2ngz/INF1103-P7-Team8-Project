@@ -82,6 +82,17 @@ class IOManager:
                 return value
             self.warn("Score must be between 0 and 10.")
 
+    def prompt_record_id(self, question="Enter the record ID (blank to cancel): "):
+        #Returns an int id, or None when the user cancels
+        while True:
+            text = self._input(question).strip()
+            if not text:
+                return None
+            if text.isdigit():
+                return int(text)
+            self.warn("Please enter the numeric ID shown in the table.")
+            
+
 RESUME_FOLDER = "./resumes"
 SCANNED_FOLDER = "./scannedResume"
 SUPPORTED_EXTENSIONS = (".pdf",)
