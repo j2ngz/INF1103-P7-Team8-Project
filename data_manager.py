@@ -49,3 +49,84 @@ class RecordRepository(ABC):
 
     def close(self):
         pass
+
+
+class SqliteRecordRepository(RecordRepository):
+
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS records (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                 TEXT    NOT NULL,
+            skills               TEXT    NOT NULL,
+            it_experience_years  REAL    NOT NULL,
+            certificates         TEXT    NOT NULL,
+            it_certs             TEXT    NOT NULL,
+            missing_skills_count INTEGER NOT NULL,
+            score                REAL    NOT NULL,
+            outcome              TEXT    NOT NULL,
+            timestamp            TEXT    NOT NULL,
+            review_decision      TEXT,
+            review_note          TEXT    NOT NULL DEFAULT '',
+            reviewed_at          TEXT
+        )"""
+
+    def __init__(self, path=DEFAULT_SQLITE_PATH):
+        self._path = path
+        self.__connection = self.open()
+
+    # connection handling
+    def open(self):
+        if self._path != ":memory:":
+            folder = os.path.dirname(self._path)
+            try:
+                if folder:
+                    os.makedirs(folder, exist_ok=True)
+            except OSError as e:
+                raise RepositoryError(f"Could not create folder {folder}: {e}") from e
+            
+        try:
+            return self.connect_and_prepare()
+        
+        except sqlite3.DatabaseError as e:
+
+            if self._path == ":memory:":
+                raise RepositoryError(f"Database error: {e}") from e
+            
+            moved = f"{self._path}.corrupt-{datetime.now():%Y%m%d%H%M%S}"
+            logger.error(f"{self._path} is not a usable database ({e}). Moving it to {moved} and starting fresh.")
+            
+            try:
+                os.replace(self._path, moved)
+                return self.connect_and_prepare()
+            except (OSError, sqlite3.Error) as e2:
+                raise RepositoryError(f"Could not recover database {self._path}: {e2}") from e2
+
+    def connect_and_prepare(self):
+        
+        connection = sqlite3.connect(self._path)
+        
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute(self.SCHEMA)
+            connection.commit()
+        except sqlite3.Error:
+            connection.close()
+            raise
+        return connection
+
+    def close(self):
+        if self.__connection is not None:
+            self.__connection.close()
+            self.__connection = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def _conn(self):
+        
+        if self.__connection is None:
+            raise RepositoryError("The database connection is closed")
+        return self.__connection
