@@ -152,3 +152,12 @@ class SqliteRecordRepository(RecordRepository):
             review_decision=row["review_decision"], review_note=row["review_note"] or "",
             reviewed_at=row["reviewed_at"],
         )
+
+    def rows_to_records(self, rows):
+        records = []
+        for row in rows:
+            try:
+                records.append(self.to_record(row))
+            except (ValueError, TypeError, KeyError) as e:
+                logger.warning(f"Skipping corrupt database row id={row['id']}: {e}")
+        return records
