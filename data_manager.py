@@ -140,3 +140,15 @@ class SqliteRecordRepository(RecordRepository):
             record.review_decision.value if record.review_decision else None,
             record.review_note, record.reviewed_at,
         )
+
+    @staticmethod
+    def to_record(row):
+        return ResumeRecord(
+            record_id=row["id"], name=row["name"], skills=json.loads(row["skills"]),
+            it_experience_years=row["it_experience_years"],
+            certificates=json.loads(row["certificates"]), it_certs=json.loads(row["it_certs"]),
+            missing_skills_count=row["missing_skills_count"], score=row["score"],
+            outcome=row["outcome"], timestamp=row["timestamp"],
+            review_decision=row["review_decision"], review_note=row["review_note"] or "",
+            reviewed_at=row["reviewed_at"],
+        )
