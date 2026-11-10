@@ -161,3 +161,10 @@ class SqliteRecordRepository(RecordRepository):
             except (ValueError, TypeError, KeyError) as e:
                 logger.warning(f"Skipping corrupt database row id={row['id']}: {e}")
         return records
+
+    def run(self, action):
+        # runs a database action and turns sqlite errors into RepositoryError
+        try:
+            return action(self._conn())
+        except sqlite3.Error as e:
+            raise RepositoryError(f"Database error: {e}") from e
