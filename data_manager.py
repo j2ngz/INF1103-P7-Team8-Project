@@ -130,3 +130,13 @@ class SqliteRecordRepository(RecordRepository):
         if self.__connection is None:
             raise RepositoryError("The database connection is closed")
         return self.__connection
+
+    @staticmethod
+    def values(record):
+        return (
+            record.name, json.dumps(record.skills), record.it_experience_years,
+            json.dumps(record.certificates), json.dumps(record.it_certs),
+            record.missing_skills_count, record.score, record.outcome.value, record.timestamp,
+            record.review_decision.value if record.review_decision else None,
+            record.review_note, record.reviewed_at,
+        )
