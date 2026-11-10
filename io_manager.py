@@ -92,6 +92,21 @@ class IOManager:
                 return int(text)
             self.warn("Please enter the numeric ID shown in the table.")
 
+    def prompt_review_decision(self, record):
+        #Shows one Flagged record and asks for a decision. Returns (Outcome, Note) or none
+        self._print(f"\nReviewing {record.display_id} - {record.name}: score {record.score}/10, "
+                    f"{record.missing_skills_count} skill(s) missing, {len(record.it_certs)} IT cert(s), "
+                    f"{record.it_experience_years} yr IT experience")
+        while True:
+            text = self._input("Decision (Accepted/Rejected) [blank to cancel]: ").strip()
+            if not text:
+                return None
+            decision = Outcome.parse(text)
+            if decision in (Outcome.ACCEPTED, Outcome.REJECTED):
+                note = self._input("Note for the record (optional): ").strip()
+                return decision, note
+            self.warn("Please enter Accepted or Rejected.")
+
     def confirm(self, question):
         return self._input(f"{question} (y/n): ").strip().lower() in ("y", "yes")
 
@@ -159,7 +174,7 @@ class ResumeFolder:
         return os.path.isdir(self._resume_dir)
 
     def pdf_paths(self):
-#Paths of every supported resume file sorted by name and empty if folder is missing
+        #Paths of every supported resume file sorted by name and empty if folder is missing
         if not self.exists():
             return []
         return [
@@ -168,10 +183,9 @@ class ResumeFolder:
             if name.lower().endswith(self.SUPPORTED_EXTENSIONS)
         ]
 
-
     def archive(self, filenames):
-# Moves each file into the scanned folder 
-# File that cannot be moved is skipped and returns a list of filename, error message for the failures
+        # Moves each file into the scanned folder 
+        # File that cannot be moved is skipped and returns a list of filename, error message for the failures
 
         failures = []
         os.makedirs(self._scanned_dir, exist_ok=True)
