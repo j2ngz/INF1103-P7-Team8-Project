@@ -96,15 +96,18 @@ class ResumeRecord:
         self._it_certs = list(it_certs)
         self._missing_skills_count = int(missing_skills_count)
         self._score = float(score)
-        self._outcome = Outcome.parse(outcome) if not isinstance(outcome, Outcome) else outcome
+        self._outcome = Outcome.parse(outcome)
+
         if self._outcome is None:
             raise ValueError(f"Unknown outcome: {outcome!r}")
+        
         self._timestamp = timestamp
         self._review_decision = None
         self._review_note = ""
         self._reviewed_at = None
+
         if review_decision:
-            decision = review_decision if isinstance(review_decision, Outcome) else Outcome.parse(review_decision)
+            decision = Outcome.parse(review_decision)
             if decision not in self.REVIEWABLE_DECISIONS:
                 raise ValueError(f"Invalid review decision: {review_decision!r}")
             self._review_decision = decision
@@ -190,7 +193,7 @@ class ResumeRecord:
             raise ValueError("Only Flagged records can be reviewed")
         if self.is_reviewed:
             raise ValueError("This record has already been reviewed")
-        decision = decision if isinstance(decision, Outcome) else Outcome.parse(decision)
+        decision = Outcome.parse(decision)
         if decision not in self.REVIEWABLE_DECISIONS:
             raise ValueError("Review decision must be Accepted or Rejected")
         self._review_decision = decision
