@@ -198,3 +198,14 @@ class SqliteRecordRepository(RecordRepository):
 
     def list_all(self):
         return self.rows_to_records(self.run(lambda c: c.execute("SELECT * FROM records ORDER BY id").fetchall()))
+
+    def update(self, record):
+        def action(conn):
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE records SET name=?, skills=?, it_experience_years=?, certificates=?, it_certs=?, "
+                    "missing_skills_count=?, score=?, outcome=?, timestamp=?, review_decision=?, "
+                    "review_note=?, reviewed_at=? WHERE id=?",
+                    self.values(record) + (record.id,))
+            return cursor.rowcount > 0
+        return self.run(action)
