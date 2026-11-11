@@ -195,3 +195,6 @@ class SqliteRecordRepository(RecordRepository):
         rows = self.run(lambda c: c.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchall())
         records = self.rows_to_records(rows)
         return records[0] if records else None
+
+    def list_all(self):
+        return self.rows_to_records(self.run(lambda c: c.execute("SELECT * FROM records ORDER BY id").fetchall()))
