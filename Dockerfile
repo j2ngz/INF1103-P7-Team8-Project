@@ -1,22 +1,17 @@
 FROM python:3.14-slim
 
 WORKDIR /app
-
 ENV PYTHONUNBUFFERED=1
-
-COPY ai_manager.py .
-COPY logic_manager.py .
-COPY data_manager.py .
-COPY io_manager.py .
-COPY requirements.txt .
-COPY .env .
-
-# Demo resumes baked into the image
-COPY resumes/ ./resumes/
 
 RUN pip install --no-cache-dir google-genai
 
-# Scanned resumes get moved here
-RUN mkdir -p scannedResume
+COPY app.py models.py io_manager.py ai_manager.py logic_manager.py data_manager.py review_service.py ./
+COPY requirements.txt ./
 
-CMD ["python", "io_manager.py"]
+COPY tests/ ./tests/
+
+COPY resumes/ ./resumes/
+
+RUN mkdir -p scannedResume data
+
+CMD ["python", "app.py"]
