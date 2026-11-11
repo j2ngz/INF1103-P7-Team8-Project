@@ -190,3 +190,8 @@ class SqliteRecordRepository(RecordRepository):
         for record, new_id in zip(records, ids):
             record.assign_id(new_id)
         return ids
+
+    def get(self, record_id):
+        rows = self.run(lambda c: c.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchall())
+        records = self.rows_to_records(rows)
+        return records[0] if records else None
