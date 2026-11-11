@@ -209,3 +209,10 @@ class SqliteRecordRepository(RecordRepository):
                     self.values(record) + (record.id,))
             return cursor.rowcount > 0
         return self.run(action)
+
+    def delete(self, record_id):
+        def action(conn):
+            with conn:
+                cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+            return cursor.rowcount > 0
+        return self.run(action)
