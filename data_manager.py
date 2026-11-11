@@ -216,3 +216,20 @@ class SqliteRecordRepository(RecordRepository):
                 cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
             return cursor.rowcount > 0
         return self.run(action)
+
+    def query(self, outcome=None, min_score=None, max_score=None):
+        sql, params = "SELECT * FROM records WHERE 1=1", []
+        if outcome is not None:
+            wanted = Outcome.parse(outcome)
+            if wanted is None:
+                return []
+            sql += " AND outcome = ?"
+            params.append(wanted.value)
+        if min_score is not None:
+            sql += " AND score >= ?"
+            params.append(min_score)
+        if max_score is not None:
+            sql += " AND score <= ?"
+            params.append(max_score)
+        sql += " ORDER BY id"
+        return self.rows_to_records(self.run(lambda c: c.execute(sql, params).fetchall()))
