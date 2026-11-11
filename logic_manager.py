@@ -85,85 +85,151 @@ class ScoreBreakdown:
 
 
 
-from typing import Any
+class ScoreCalculator:
+
+    def __init__(self, policy=None):
+        self._policy = policy or ScoringPolicy()
+
+    @property
+    def policy(self):
+        return self._policy
+
+    @staticmethod
+    def lowercase_certificates(certs_by_industry):
+        return {
+            industry.strip().lower(): [c.strip().lower() for c in certs]
+            for industry, certs in (certs_by_industry or {}).items()
+        }
+
+    @staticmethod
+    def has_skill(required_skill, candidate_skills):
+        return any(required_skill in skill for skill in candidate_skills)
+
+    def calculate(self, resume, requirements):
+        p = self._policy
+        required = [s.lower() for s in requirements.required_skills]
+        candidate = [s.lower() for s in resume.skills]
+
+        missing = [s for s in required if not self.has_skill(s, candidate)]
+        if required:
+            matched = len(required) - len(missing)
+            skill_fraction = min(matched / p.skills_for_full_score, 1.0)
+        else:
+            skill_fraction = 1.0
+
+        years = resume.experience_by_field.get(p.target_field, 0)
+        experience_fraction = min(years / p.experience_for_full_score, 1.0)
+
+        certificates = self.lowercase_certificates(resume.certificates_by_industry)
+        it_certs = certificates.get(p.target_field.lower(), [])
+        certs_fraction = min(len(it_certs) / p.certs_for_full_score, 1.0)
+
+        score = (skill_fraction * p.skills_weight
+                 + experience_fraction * p.experience_weight
+                 + certs_fraction * p.certs_weight) * 10
+        return ScoreBreakdown(round(score, 1), years, certificates, it_certs, missing)
 
 
-TARGET_FIELD = "IT"
+class OutcomeRule(ABC):
 
-SKILLS_FOR_FULL_SCORE = 4
+    def __init__(self, policy=None):
+        self._policy = policy or ScoringPolicy()
 
-MAX_EXPERIENCE_FOR_FULL_SCORE = 5
+    @property
+    @abstractmethod
+    def name(self):
+        """Short name used in requirements.txt"""
 
-MAX_CERTS_FOR_FULL_SCORE = 3
+    @abstractmethod
+    def _qualifies_for_accept(self, breakdown, requirements):
+        """True when the resume meets conditions for accepted."""
 
-ACCEPT_SCORE_THRESHOLD = 7.5
-REJECT_SCORE_THRESHOLD = 4.0
-
-
-
-def lowercase_certificates_by_industry(certs_by_industry: dict[str, list[str]] | None) -> dict[str, list[str]]:
-    normalized = {}
-    for industry, certs in (certs_by_industry or {}).items():
-        normalized[industry.strip().lower()] = [c.strip().lower() for c in certs]
-    return normalized
-
-
-def does_candidate_have_skill(required_skill: str, candidate_skills: list[str]) -> bool:
-    return any(required_skill in candidate_skill for candidate_skill in candidate_skills)
+    def decide(self, breakdown, requirements):
+        if breakdown.score <= self._policy.reject_threshold:
+            return Outcome.REJECTED
+        if self._qualifies_for_accept(breakdown, requirements):
+            return Outcome.ACCEPTED
+        return Outcome.FLAGGED
 
 
-def calculate_resume_score(
-    record: dict[str, Any], requirements: dict[str, Any]
-) -> tuple[float, list[str], list[str], float, dict[str, list[str]], list[str]]:
-    required_skills = [s.lower() for s in requirements.get("required_skills", [])]
-    candidate_skills = [s.lower() for s in record.get("skills", [])]
+class ScoreOnlyRule(OutcomeRule):
+    @property
+    def name(self):
+        return "score_only"
 
-    if required_skills:
-        matched_count = sum(1 for s in required_skills if does_candidate_have_skill(s, candidate_skills))
-        skill_fraction = min(matched_count / SKILLS_FOR_FULL_SCORE, 1.0)
-    else:
-        skill_fraction = 1.0 
-
-    field_experience = record.get("experience_by_field", {}).get(TARGET_FIELD, 0)
-    experience_fraction = min(field_experience / MAX_EXPERIENCE_FOR_FULL_SCORE, 1.0)
-
-    normalized_certs = lowercase_certificates_by_industry(record.get("certificates_by_industry"))
-    target_field_certs = normalized_certs.get(TARGET_FIELD.lower(), [])
-    certs_fraction = min(len(target_field_certs) / MAX_CERTS_FOR_FULL_SCORE, 1.0)
-
-    score = (skill_fraction * 0.4 + experience_fraction * 0.4 + certs_fraction * 0.2) * 10
-    return (
-        round(score, 1), required_skills, candidate_skills,
-        field_experience, normalized_certs, target_field_certs,
-    )
+    def _qualifies_for_accept(self, breakdown, requirements):
+        return breakdown.score > self._policy.accept_threshold
 
 
-def evaluate_resume(record: dict[str, Any], requirements: dict[str, Any]) -> dict[str, Any]:
-    (score, required_skills, candidate_skills,
-     field_experience, normalized_certs, target_field_certs) = calculate_resume_score(record, requirements)
+class EligibilityRule(ScoreOnlyRule):
+    @property
+    def name(self):
+        return "multi_condition"
 
-    missing_skills = [s for s in required_skills if not does_candidate_have_skill(s, candidate_skills)]
+    def _qualifies_for_accept(self, breakdown, requirements):
+        return (super()._qualifies_for_accept(breakdown, requirements)
+                and breakdown.it_experience_years >= requirements.min_experience)
 
-    if score > ACCEPT_SCORE_THRESHOLD:
-        outcome = "Accepted"
-    elif score <= REJECT_SCORE_THRESHOLD:
-        outcome = "Rejected"
-    else:
-        outcome = "Flagged"
+class OutcomeRuleFactory:
 
-    return {
-        "name": record.get("name", "Unknown"),
-        "skills": [s.lower() for s in record.get("skills", [])],
-        "it_experience_years": field_experience,
-        "certificates": normalized_certs,
-        "it_certs": target_field_certs,
-        "missing_skills_count": len(missing_skills),
-        "score": score,
-        "outcome": outcome,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    _rules = {
+        ScoreOnlyRule(ScoringPolicy()).name: ScoreOnlyRule,
+        EligibilityRule(ScoringPolicy()).name: EligibilityRule,
     }
 
+    @classmethod
+    def register(cls, name, rule_class):
+        cls._rules[name] = rule_class
 
-# def evaluate_batch(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-#     requirements = load_requirements()
-#     return [evaluate_resume(r, requirements) for r in records]
+    @classmethod
+    def available(cls):
+        return sorted(cls._rules)
+
+    @classmethod
+    def create(cls, name, policy=None):
+        rule_class = cls._rules.get(name)
+        if rule_class is None:
+            logger.warning(f"Unknown outcome_rule '{name}'. Using '{JobRequirements.DEFAULT_RULE}'.")
+            rule_class = cls._rules[JobRequirements.DEFAULT_RULE]
+        return rule_class(policy)
+
+
+class LogicManager:
+
+    def __init__(self, requirements_path=REQUIREMENTS_FILE, requirements=None,
+                 calculator=None, rule=None, clock=datetime.now):
+        self._requirements_path = requirements_path
+        self._fixed_requirements = requirements
+        self._requirements = requirements or JobRequirements.from_file(requirements_path)
+        self._calculator = calculator or ScoreCalculator()
+        self._fixed_rule = rule
+        self._clock = clock
+
+    @property
+    def requirements(self):
+        return self._requirements
+
+    def current_rule(self):
+        if self._fixed_rule is not None:
+            return self._fixed_rule
+        return OutcomeRuleFactory.create(self._requirements.outcome_rule, self._calculator.policy)
+
+    def evaluate_resume(self, resume):
+        breakdown = self._calculator.calculate(resume, self._requirements)
+        outcome = self.current_rule().decide(breakdown, self._requirements)
+        return ResumeRecord(
+            name=resume.name or "Unknown",
+            skills=[s.lower() for s in resume.skills],
+            it_experience_years=breakdown.it_experience_years,
+            certificates=breakdown.certificates,
+            it_certs=breakdown.it_certs,
+            missing_skills_count=len(breakdown.missing_skills),
+            score=breakdown.score,
+            outcome=outcome,
+            timestamp=self._clock().strftime("%Y-%m-%d %H:%M:%S"),
+        )
+
+    def evaluate_batch(self, batch):
+        if self._fixed_requirements is None:
+            self._requirements = JobRequirements.from_file(self._requirements_path)
+        return [self.evaluate_resume(resume) for resume in batch]
