@@ -168,3 +168,25 @@ class SqliteRecordRepository(RecordRepository):
             return action(self._conn())
         except sqlite3.Error as e:
             raise RepositoryError(f"Database error: {e}") from e
+
+    # RecordRepository
+
+    _INSERT = ("INSERT INTO records (name, skills, it_experience_years, certificates, it_certs, "
+               "missing_skills_count, score, outcome, timestamp, review_decision, review_note, reviewed_at) "
+               "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+
+    def add(self, record):
+        return self.add_many([record])[0]
+
+    def add_many(self, records):
+        def action(conn):
+            ids = []
+            with conn:  
+                for record in records:
+                    cursor = conn.execute(self._INSERT, self.values(record))
+                    ids.append(cursor.lastrowid)
+            return ids
+        ids = self.run(action)
+        for record, new_id in zip(records, ids):
+            record.assign_id(new_id)
+        return ids
