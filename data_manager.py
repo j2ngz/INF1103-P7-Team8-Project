@@ -259,3 +259,12 @@ class InMemoryRecordRepository(RecordRepository):
 
     def list_all(self):
         return [copy.deepcopy(r) for _, r in sorted(self._records.items())]
+
+    def update(self, record):
+        if record.id not in self._records:
+            return False
+        self._records[record.id] = copy.deepcopy(record)
+        return True
+
+    def delete(self, record_id):
+        return self._records.pop(record_id, None) is not None
