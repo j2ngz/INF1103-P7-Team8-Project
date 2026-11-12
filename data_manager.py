@@ -233,3 +233,22 @@ class SqliteRecordRepository(RecordRepository):
             params.append(max_score)
         sql += " ORDER BY id"
         return self.rows_to_records(self.run(lambda c: c.execute(sql, params).fetchall()))
+
+class InMemoryRecordRepository(RecordRepository):
+    # keeps records in a Python dict (used for tests)
+
+    def __init__(self):
+        self._records = {}     
+        self._next_id = 1
+
+    def add(self, record):
+        return self.add_many([record])[0]
+
+    def add_many(self, records):
+        ids = []
+        for record in records:
+            record.assign_id(self._next_id)
+            self._records[self._next_id] = copy.deepcopy(record)   # store a copy, like a database would
+            ids.append(self._next_id)
+            self._next_id += 1
+        return ids
