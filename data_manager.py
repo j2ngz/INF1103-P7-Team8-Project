@@ -252,3 +252,10 @@ class InMemoryRecordRepository(RecordRepository):
             ids.append(self._next_id)
             self._next_id += 1
         return ids
+
+    def get(self, record_id):
+        record = self._records.get(record_id)
+        return copy.deepcopy(record) if record else None
+
+    def list_all(self):
+        return [copy.deepcopy(r) for _, r in sorted(self._records.items())]
