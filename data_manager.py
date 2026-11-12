@@ -268,3 +268,14 @@ class InMemoryRecordRepository(RecordRepository):
 
     def delete(self, record_id):
         return self._records.pop(record_id, None) is not None
+
+    def query(self, outcome=None, min_score=None, max_score=None):
+        wanted = None
+        if outcome is not None:
+            wanted = Outcome.parse(outcome)
+            if wanted is None:
+                return []
+        return [r for r in self.list_all()
+                if (wanted is None or r.outcome is wanted)
+                and (min_score is None or r.score >= min_score)
+                and (max_score is None or r.score <= max_score)]
