@@ -291,3 +291,14 @@ class DataManager:
 
     def close(self):
         self._repository.close()
+
+    def save_records(self, records):
+        records = list(records)
+        if not records:
+            return []
+        try:
+            self._repository.add_many(records)
+        except RepositoryError as e:
+            logger.error(f"Failed to save records: {e}")
+            return []
+        return records
