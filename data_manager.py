@@ -302,3 +302,24 @@ class DataManager:
             logger.error(f"Failed to save records: {e}")
             return []
         return records
+
+    def load_records(self):
+        try:
+            return self._repository.list_all()
+        except RepositoryError as e:
+            logger.error(f"Failed to load records: {e}")
+            return []
+
+    def filter_records(self, outcome=None, min_score=None, max_score=None):
+        try:
+            return self._repository.query(outcome, min_score, max_score)
+        except RepositoryError as e:
+            logger.error(f"Failed to query records: {e}")
+            return []
+
+    def get_record(self, record_id):
+        try:
+            return self._repository.get(record_id)
+        except RepositoryError as e:
+            logger.error(f"Failed to read record {record_id}: {e}")
+            return None
