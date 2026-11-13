@@ -323,3 +323,17 @@ class DataManager:
         except RepositoryError as e:
             logger.error(f"Failed to read record {record_id}: {e}")
             return None
+
+    def update_record(self, record):
+        try:
+            return self._repository.update(record)
+        except RepositoryError as e:
+            logger.error(f"Failed to update record {record.id}: {e}")
+            return False
+
+    def delete_record(self, record_id):
+        try:
+            return self._repository.delete(record_id)
+        except RepositoryError as e:
+            logger.error(f"Failed to delete record {record_id}: {e}")
+            return False
