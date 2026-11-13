@@ -279,3 +279,15 @@ class InMemoryRecordRepository(RecordRepository):
                 if (wanted is None or r.outcome is wanted)
                 and (min_score is None or r.score >= min_score)
                 and (max_score is None or r.score <= max_score)]
+
+class DataManager:
+
+    def __init__(self, repository):
+        self._repository = repository
+
+    @property
+    def repository(self):
+        return self._repository
+
+    def close(self):
+        self._repository.close()
