@@ -114,3 +114,27 @@ class ScreeningApp:
         criteria = self._io.prompt_filter_criteria()
         matches = self._data.filter_records(criteria.outcome, criteria.min_score, criteria.max_score)
         self._io.show_records(matches, title="Filtered Records")
+
+    def review_flagged(self):
+        pending = self._review.pending_reviews()
+        if not pending:
+            self._io.show("\nNo Flagged records are waiting for review.")
+            return
+        self._io.show_records(pending, title="Flagged - waiting for review")
+        record_id = self._io.prompt_record_id("Enter the ID of the record to review (blank to cancel): ")
+        if record_id is None:
+            return
+        record = next((r for r in pending if r.id == record_id), None)
+        if record is None:
+            self._io.warn(f"Record {record_id} is not waiting for review.")
+            return
+        answer = self._io.prompt_review_decision(record)
+        if answer is None:
+            return
+        decision, note = answer
+        try:
+            updated = self._review.submit_review(record.id, decision, note)
+        except ReviewError as e:
+            self._io.warn(str(e))
+            return
+        self._io.show(f"Record {updated.display_id} marked {updated.review_decision.value}.")
