@@ -1,63 +1,105 @@
-"""
-AI Manager
-----------
-Core engine - every resume record passes through here.
-
-Responsibilities:
-  - Build a prompt from the batch of resumes
-  - Upload resumes to the AI API (Gemini) and call it
-  - Validate the response schema - reject/retry on malformed output
-  - Handle API failures gracefully (log and continue, never crash)
-  - Split the batch response into one record per resume
-
-Zero domain logic lives here - only API interaction and response plumbing.
-The AI never sees job requirements; it only extracts facts from each resume.
-
-NOTE: The API key is read from the GEMINI_API_KEY line in the .env file.
-"""
-
-import os
 import json
-import time
 import logging
+import os
+import time
+from abc import ABC, abstractmethod
 
-from google import genai
+from models import ResumeBatch, ResumeData
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AIManager")
 
+# AI Model, API connection failure
+MODEL_NAME = "gemini-3.5-flash-lite"  # Google gemini API
+MAX_RETRIES = 5
+BACKOFF_SECONDS = 5
+REQUEST_TIMEOUT_SECONDS = 120 
+
+#Errors
+#Custom errors raised by the Gemini, AI manager handle them seperately.
+class AIConfigurationError(RuntimeError):
+    """The AI cannot be used at all, no API key or model is down)."""
 
 
-def _load_env_file(path):
-    # Reads KEY=VALUE lines from a .env file into os.environ (no extra package needed).
-    # A variable that is already set (e.g. by Docker) is not overwritten.
+class NoResumesUploadedError(RuntimeError):
+    """None of the resume files is uploaded to Gemini."""
+
+
+#For Key Retreieval in .env
+#Loads API key from a .env file into the environment.
+def load_env_file(path, environ=None):
+    environ = os.environ if environ is None else environ
     if not os.path.exists(path):
         return
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            if line and not line.startswith("#") and "=" in line:
+                key, value = line.split("=", 1)
+                environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
+#The AI client interface
+class AIClient(ABC):
+    """A template for any AI client: it must be able to turn resumes into JSON text."""
 
-# --- API key comes from the .env file next to this script ---
-_load_env_file(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if not API_KEY:
-    raise RuntimeError("GEMINI_API_KEY is not set. Add it to the .env file (see README).")
-_client = genai.Client(api_key=API_KEY)
-# -----------------------------------------
+    @abstractmethod
+    def generate_json(self, prompt, resume_paths):
+        """
+        Send the built prompt along with resumes files from the /resumes folder to AI API and return the reply as JSON text
+        if the connection fail then AIManager will handle the error
+        """
 
-MODEL_NAME = "gemini-3.5-flash-lite"  # Model used for resume parsing.
-MAX_RETRIES = 5
+#Gemini implementation
+class GeminiClient(AIClient):
+    def __init__(self, api_key=None, model_name=MODEL_NAME, timeout_seconds=REQUEST_TIMEOUT_SECONDS):
+        self._api_key = api_key
+        self._model_name = model_name
+        self._timeout_seconds = timeout_seconds
+        self.__client = None
 
-REQUIRED_FIELDS = {"filename", "name", "skills", "experience_by_field", "certificates_by_industry"}
+    def get_client(self):
+        if self.__client is None:
+            #If there got no connection establish before, build with the .env file API key
+            api_key = self._api_key or os.environ.get("GEMINI_API_KEY", "")
+            if not api_key:
+                raise AIConfigurationError("GEMINI_API_KEY is not set...")
+            from google import genai
+            #Timeout handling every request gets a time limit, so a slow API call fails due to many ppl using the same API call
+            try:
+                from google.genai import types
+                options = types.HttpOptions(timeout=int(self._timeout_seconds * 1000))
+                self.__client = genai.Client(api_key=api_key, http_options=options)
+            except (ImportError, AttributeError, TypeError, ValueError):
+                self.__client = genai.Client(api_key=api_key)
+        return self.__client
 
+    def upload_resumes(self, resume_paths):
+        #Uploads all the resume files and if a file that fail to upload it is logged and skipped.
+        client = self.get_client()
+        uploaded = []
+        for path in resume_paths:
+            try:
+                uploaded.append(client.files.upload(file=path))
+            except Exception as e:
+                logger.error(f"Failed to upload {path}: {e}")
+        return uploaded
+    
+    def generate_json(self, prompt, resume_paths):
+        #Send the built prompt with uploaded PDFs to Gemini API and return its reply in JSON text.
+        client = self.get_client()
+        uploaded = self.upload_resumes(resume_paths)
+        #If no PDF could be uploaded, raise an error because there is nothing to read.
+        if not uploaded:
+            raise NoResumesUploadedError("No resumes were successfully uploaded.")
+        response = client.models.generate_content(
+            model=self._model_name,
+            contents=[prompt, *uploaded],
+            config={"response_mime_type": "application/json"},
+        )
+        return response.text
 
-def _build_prompt(filenames):
-    #Builds the instruction text sent alongside the uploaded resume files.
+# Prompt
+#Prompt used to send the instruction alongside the uploaded resume files.
+def build_prompt(filenames):
     file_list = "\n".join(f"- {name}" for name in filenames)
     return (
         "You are an information extraction engine. You will be given "
@@ -84,104 +126,99 @@ def _build_prompt(filenames):
         "Do not include any explanation, markdown formatting, or extra text - JSON only."
     )
 
+#Validations
+class ResponseValidator:
+    #Read the Gemini API replies and ensure that it has the 5 fields we want
+    REQUIRED_FIELDS = {"filename", "name", "skills", "experience_by_field", "certificates_by_industry"}
 
-def _upload_resumes(resume_paths):
-    #Uploads each resume file to the API's file store and returns the file handles.
-    uploaded = []
-    for path in resume_paths:
+    def parse(self, raw_text):
+        #Change the Gemeni API reply into list of records, or None
+        if not isinstance(raw_text, str):
+            return None
+        cleaned = raw_text.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.strip("`")
+            if cleaned.lower().startswith("json"):
+                cleaned = cleaned[4:]
         try:
-            file_ref = _client.files.upload(file=path)
-            uploaded.append(file_ref)
-        except Exception as e:
-            logger.error(f"Failed to upload {path}: {e}")
-    return uploaded
+            data = json.loads(cleaned)
+        except json.JSONDecodeError:
+            return None
+        return data if isinstance(data, list) else None
 
-
-def _validate_record(record):
-    #Checks a single parsed record has the required fields and correct types.
-    if not isinstance(record, dict):
-        return False
-    if not REQUIRED_FIELDS.issubset(record.keys()):
-        return False
-    if not isinstance(record.get("name"), str):
-        return False
-    if not isinstance(record.get("skills"), list):
-        return False
-
-    experience_by_field = record.get("experience_by_field")
-    if not isinstance(experience_by_field, dict):
-        return False
-    if not all(isinstance(v, (int, float)) for v in experience_by_field.values()):
-        return False
-
-    certs_by_industry = record.get("certificates_by_industry")
-    if not isinstance(certs_by_industry, dict):
-        return False
-    for industry_certs in certs_by_industry.values():
-        if not isinstance(industry_certs, list):
+    def is_valid(self, record):
+        #True when the record has all 5 fields.
+        if not isinstance(record, dict):
             return False
-        if not all(isinstance(c, str) for c in industry_certs):
+        if not self.REQUIRED_FIELDS.issubset(record.keys()):
+            return False
+        if not isinstance(record["filename"], str) or not isinstance(record["name"], str):
+            return False
+        skills = record["skills"]
+        if not isinstance(skills, list) or not all(isinstance(s, str) for s in skills):
             return False
 
-    return True
+        experience = record["experience_by_field"]
+        if not isinstance(experience, dict):
+            return False
+        if not all(isinstance(v, (int, float)) for v in experience.values()):
+            return False
 
+        certificates = record["certificates_by_industry"]
+        if not isinstance(certificates, dict):
+            return False
+        for certs in certificates.values():
+            if not isinstance(certs, list) or not all(isinstance(c, str) for c in certs):
+                return False
+        return True
 
-def _parse_response(raw_text):
-    #Parses the model's raw text output into a list of dicts. Returns None on failure.
-    cleaned = raw_text.strip()
-    if cleaned.startswith("```"):
-        cleaned = cleaned.strip("`")
-        if cleaned.lower().startswith("json"):
-            cleaned = cleaned[4:]
-    try:
-        data = json.loads(cleaned)
-    except json.JSONDecodeError:
-        return None
-    if not isinstance(data, list):
-        return None
-    return data
+    def valid_records(self, records):
+        #Keeps only the valid records, and count how many failed
+        valid = [r for r in records if self.is_valid(r)]
+        return valid, len(records) - len(valid)
 
+#The main loop
+class AIManager:
+    #Runs AI portion of the code which sends the resumes to the AI, checks the reply and retries if it fails.
+    def __init__(self, client, validator=None, max_retries=MAX_RETRIES, backoff_seconds=BACKOFF_SECONDS, sleep=time.sleep):
+        self._client = client
+        self._validator = validator or ResponseValidator()
+        self._max_retries = max_retries
+        self._backoff_seconds = backoff_seconds
+        self._sleep = sleep
 
-def process_resume_batch(resume_paths):
-    if not resume_paths:
-        return []
+    def process_resume_batch(self, resume_paths):
+        if not resume_paths:
+            return ResumeBatch()
 
-    filenames = [os.path.basename(p) for p in resume_paths]
-    prompt = _build_prompt(filenames)
+        filenames = [os.path.basename(p) for p in resume_paths]
+        prompt = build_prompt(filenames)
 
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            uploaded_files = _upload_resumes(resume_paths)
-            if not uploaded_files:
-                logger.error("No resumes were successfully uploaded.")
-                return []
+        for attempt in range(1, self._max_retries + 1):
+            try:
+                raw = self._client.generate_json(prompt, resume_paths)
+                records = self._validator.parse(raw)
+                if records is None:
+                    logger.warning(f"Attempt {attempt}: malformed JSON response, retrying...")
+                    continue
 
-            response = _client.models.generate_content(
-                model=MODEL_NAME,
-                contents=[prompt, *uploaded_files],
-                config={"response_mime_type": "application/json"},
-            )
-            records = _parse_response(response.text)
+                valid, dropped = self._validator.valid_records(records)
+                if dropped:
+                    logger.warning(
+                        f"Attempt {attempt}: {dropped} record(s) failed schema validation and were dropped.")
+                if valid:
+                    return ResumeBatch(ResumeData.from_dict(r) for r in valid)
+                logger.warning(f"Attempt {attempt}: no valid records parsed, retrying...")
 
-            if records is None:
-                logger.warning(f"Attempt {attempt}: malformed JSON response, retrying...")
-                continue
+            except AIConfigurationError:
+                raise
+            except NoResumesUploadedError as e:
+                logger.error(str(e))
+                return ResumeBatch()
+            except Exception as e:
+                logger.error(f"Attempt {attempt}: API call failed: {e}")
+                if attempt < self._max_retries:
+                    self._sleep(self._backoff_seconds * attempt)
 
-            valid_records = [r for r in records if _validate_record(r)]
-            if len(valid_records) < len(records):
-                logger.warning(
-                    f"Attempt {attempt}: {len(records) - len(valid_records)} record(s) "
-                    "failed schema validation and were dropped."
-                )
-
-            if valid_records:
-                return valid_records
-
-            logger.warning(f"Attempt {attempt}: no valid records parsed, retrying...")
-
-        except Exception as e:
-            logger.error(f"Attempt {attempt}: API call failed: {e}")
-            time.sleep(5 * attempt)
-
-    logger.error("All retries exhausted. Returning empty result for this batch.")
-    return []
+        logger.error("All retries exhausted. Returning empty result for this batch.")
+        return ResumeBatch()
