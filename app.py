@@ -35,3 +35,22 @@ class ScreeningApp:
             review=ReviewService(data),
             folder=ResumeFolder(),
         )
+
+#  main loop
+    def run(self):
+        handlers = {
+            "1": self.scan_resumes,
+            "2": self.view_summary,
+            "3": self.filter_records,
+            "4": self.review_flagged,
+            "5": self.delete_record,
+        }
+        try:
+            while True:
+                choice = self._io.prompt_menu_choice()
+                if choice == "6":
+                    self._io.show("Goodbye!")
+                    break
+                handlers[choice]()
+        finally:
+            self._data.close()
