@@ -138,3 +138,23 @@ class ScreeningApp:
             self._io.warn(str(e))
             return
         self._io.show(f"Record {updated.display_id} marked {updated.review_decision.value}.")
+
+    def delete_record(self):
+        records = self._data.load_records()
+        if not records:
+            self._io.warn("No records to delete.")
+            return
+        self._io.show_records(records)
+        record_id = self._io.prompt_record_id("Enter the ID of the record to delete (blank to cancel): ")
+        if record_id is None:
+            return
+        if self._data.get_record(record_id) is None:
+            self._io.warn(f"No record with id {record_id}.")
+            return
+        if not self._io.confirm(f"Delete record {record_id:02d}?"):
+            self._io.show("Cancelled.")
+            return
+        if self._data.delete_record(record_id):
+            self._io.show(f"Record {record_id:02d} deleted.")
+        else:
+            self._io.warn("The record could not be deleted.")
