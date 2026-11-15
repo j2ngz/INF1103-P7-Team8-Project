@@ -158,3 +158,16 @@ class ScreeningApp:
             self._io.show(f"Record {record_id:02d} deleted.")
         else:
             self._io.warn("The record could not be deleted.")
+
+    @staticmethod
+    def main():
+        try:
+            app = ScreeningApp.build()
+        except RepositoryError as e:   # unusable database
+            IOManager().warn(str(e))
+            return
+        app.run()
+
+
+if __name__ == "__main__":
+    ScreeningApp.main()
