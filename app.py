@@ -103,3 +103,14 @@ class ScreeningApp:
 
         self._io.show(f"Processed {len(saved)} resume(s).")
         self._io.show_records(self._data.load_records())
+
+    def view_summary(self):
+        self._io.show_records(self._data.load_records())
+
+    def filter_records(self):
+        if not self._data.load_records():
+            self._io.warn("No records found in storage to filter.")
+            return
+        criteria = self._io.prompt_filter_criteria()
+        matches = self._data.filter_records(criteria.outcome, criteria.min_score, criteria.max_score)
+        self._io.show_records(matches, title="Filtered Records")
