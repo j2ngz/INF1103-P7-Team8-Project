@@ -1,4 +1,11 @@
 .env
+
+# python
 __pycache__/
 *.pyc
 .venv/
+
+# runtime data
+data/*.db
+data/*.bak
+data/*.corrupt-*

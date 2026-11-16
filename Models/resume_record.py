@@ -1,85 +1,5 @@
-from enum import Enum
+from Models.outcome import Outcome
 
-
-class Outcome(str, Enum):
-
-    ACCEPTED = "Accepted"
-    FLAGGED = "Flagged"
-    REJECTED = "Rejected"
-
-    @classmethod
-    def parse(cls, text):
-        if not isinstance(text, str):
-            return None
-        wanted = text.strip().lower()
-        for member in cls:
-            if member.value.lower() == wanted:
-                return member
-        return None
-
-class ResumeData:
-    # What the AI Read from a resume
-    def __init__(self, filename, name, skills, experience_by_field, certificates_by_industry):
-        self._filename = filename
-        self._name = name
-        self._skills = list(skills)
-        self._experience_by_field = dict(experience_by_field)
-        self._certificates_by_industry = {k: list(v) for k, v in certificates_by_industry.items()}
-
-    @classmethod
-    def from_dict(cls, data):
-        # Builds a ResumeData from an AI response dictionary.
-        return cls(
-            filename=data["filename"],
-            name=data["name"],
-            skills=data["skills"],
-            experience_by_field=data["experience_by_field"],
-            certificates_by_industry=data["certificates_by_industry"],
-        )
-
-    @property
-    def filename(self):
-        return self._filename
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def skills(self):
-        return list(self._skills)
-
-    @property
-    def experience_by_field(self):
-        return dict(self._experience_by_field)
-
-    @property
-    def certificates_by_industry(self):
-        return {k: list(v) for k, v in self._certificates_by_industry.items()}
-
-    def __repr__(self):
-        return f"ResumeData(filename={self._filename!r}, name={self._name!r})"
-
-class ResumeBatch:
-
-    def __init__(self, items=None):
-        self._items = list(items) if items else []
-
-    def add(self, item):
-        self._items.append(item)
-
-    @property
-    def filenames(self):
-        return [item.filename for item in self._items if item.filename]
-
-    def is_empty(self):
-        return not self._items
-
-    def __len__(self):
-        return len(self._items)
-
-    def __iter__(self):
-        return iter(self._items)
 
 class ResumeRecord:
 
@@ -97,15 +17,12 @@ class ResumeRecord:
         self._missing_skills_count = int(missing_skills_count)
         self._score = float(score)
         self._outcome = Outcome.parse(outcome)
-
         if self._outcome is None:
             raise ValueError(f"Unknown outcome: {outcome!r}")
-        
         self._timestamp = timestamp
         self._review_decision = None
         self._review_note = ""
         self._reviewed_at = None
-
         if review_decision:
             decision = Outcome.parse(review_decision)
             if decision not in self.REVIEWABLE_DECISIONS:
@@ -114,12 +31,13 @@ class ResumeRecord:
             self._review_note = review_note or ""
             self._reviewed_at = reviewed_at
 
+    # identity
     @property
     def id(self):
         return self._id
 
     def assign_id(self, record_id):
-        # Gives the record its id
+        # gives the record its id
         if self._id is not None:
             raise ValueError("Record already has an id")
         self._id = int(record_id)
@@ -128,6 +46,7 @@ class ResumeRecord:
     def display_id(self):
         return "" if self._id is None else f"{self._id:02d}"
 
+    # read-only data
     @property
     def name(self):
         return self._name
@@ -164,6 +83,7 @@ class ResumeRecord:
     def timestamp(self):
         return self._timestamp
 
+    # review workflow 
     @property
     def review_decision(self):
         return self._review_decision
@@ -189,6 +109,7 @@ class ResumeRecord:
         return self._review_decision if self.is_reviewed else self._outcome
 
     def apply_review(self, decision, note, reviewed_at):
+
         if self._outcome is not Outcome.FLAGGED:
             raise ValueError("Only Flagged records can be reviewed")
         if self.is_reviewed:
