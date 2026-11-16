@@ -11,18 +11,18 @@ and die with the app. The managers do not know about each other; the pipeline
 is wired here, which keeps each manager focused on one job (SRP) and easy to replace.
 
 Optional environment variables
-  GEMINI_API_KEY    the Gemini key (or put it in the .env file)
+  GEMINI_API_KEY    the Gemini key
   STORAGE_PATH      where the SQLite database lives (default: data/resume_records.db)
 """
 
 import logging
 import os
 
-from ai_manager import AIConfigurationError, AIManager, GeminiClient, load_env_file
-from data_manager import DEFAULT_SQLITE_PATH, DataManager, RepositoryError, SqliteRecordRepository
-from io_manager import IOManager, ResumeFolder
-from logic_manager import LogicManager
-from review_service import ReviewError, ReviewService
+from AIManager import AIConfigurationError, AIManager, GeminiClient, load_env_file
+from DataManager import (DEFAULT_SQLITE_PATH, DataManager, RepositoryError, ReviewError,
+                         ReviewService, SqliteRecordRepository)
+from IOManager import IOManager, ResumeFolder
+from LogicManager import LogicManager
 
 logging.basicConfig(level=logging.INFO)
 
