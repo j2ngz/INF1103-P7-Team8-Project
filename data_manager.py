@@ -1,138 +1,339 @@
-import os
+import copy
+import json
 import logging
+import os
+import sqlite3
+from abc import ABC, abstractmethod
+from datetime import datetime
 
-logging.basicConfig(level=logging.INFO)
+from models import Outcome, ResumeRecord
+
 logger = logging.getLogger("DataManager")
 
-CSV_FILE = "resume_records.csv"
-FIELDNAMES = [
-    "id", "name", "skills", "it_experience_years", "certificates",
-    "it_certs", "missing_skills_count", "score", "outcome", "timestamp",
-]
+DEFAULT_SQLITE_PATH = os.path.join("data", "resume_records.db")
 
-COLUMN_SEPARATOR = "||"
-ITEM_SEPARATOR = ","
-INDUSTRY_SEPARATOR = ";"
 
-# Covert python list to a single comma separated lowercase string
-def _list_to_cell(items):
-    return ITEM_SEPARATOR.join(str(i).strip().lower() for i in items) if items else ""
+class RepositoryError(Exception):
+    pass
 
-# Parses comma separated string into python list of strings
-def _cell_to_list(cell):
-    return [s.strip() for s in cell.split(ITEM_SEPARATOR) if s.strip()] if cell else []
+# Defining the contract
+class RecordRepository(ABC):
 
-# Convert dictionary of industry certs into a formatted colon/semicolon string
-def _certs_dict_to_cell(certs_by_industry):
-    if not certs_by_industry:
-        return ""
-    sections = []
-    for industry, certs in certs_by_industry.items():
-        cert_list = ITEM_SEPARATOR.join(c.strip().lower() for c in certs)
-        sections.append(f"{industry.strip().lower()}:{cert_list}")
-    return INDUSTRY_SEPARATOR.join(sections)
+    @abstractmethod
+    def add(self, record):
+        pass
 
-# Parses formatted cert string into a dictionary of lists by industry
-def _cell_to_certs_dict(cell):
-    result = {}
-    if not cell:
-        return result
-    for section in cell.split(INDUSTRY_SEPARATOR):
-        if ":" not in section:
-            continue
-        industry, cert_list = section.split(":", 1)
-        certs = [c.strip() for c in cert_list.split(ITEM_SEPARATOR) if c.strip()]
-        result[industry.strip()] = certs
-    return result
+    @abstractmethod
+    def add_many(self, records):
+        pass
 
-# Convert a list of column values into a single pipe-delimited line string
-def _row_to_line(values):
-    return COLUMN_SEPARATOR.join(str(v) for v in values)
+    @abstractmethod
+    def get(self, record_id):
+        pass
 
-# Parses a pipe-delimited line string back into a list of column values
-def _line_to_row(line):
-    return line.rstrip("\n").split(COLUMN_SEPARATOR)
+    @abstractmethod
+    def list_all(self):
+        pass
 
-# Loads and parses stored records into dictionaries, handling missing or corrupt files safely
-def load_records(path=CSV_FILE):
-    records = []
-    if not os.path.exists(path):
-        logger.info(f"{path} not found. Starting with an empty record set.")
-        return records
+    @abstractmethod
+    def update(self, record):
+        pass
 
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            lines = [line for line in f if line.strip()]
-    except Exception as e:
-        logger.error(f"Error reading {path}: {e}. Returning empty record set.")
-        return []
+    @abstractmethod
+    def delete(self, record_id):
+        pass
 
-    if not lines:
-        return records
+    @abstractmethod
+    def query(self, outcome=None, min_score=None, max_score=None):
+        pass
 
-    header = _line_to_row(lines[0])
-    for line in lines[1:]:
-        values = _line_to_row(line)
-        if len(values) != len(header):
-            logger.warning(f"Skipping malformed row (column count mismatch): {line!r}")
-            continue
-        row = dict(zip(header, values))
+    def close(self):
+        pass
+
+
+class SqliteRecordRepository(RecordRepository):
+
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS records (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            name                 TEXT    NOT NULL,
+            skills               TEXT    NOT NULL,
+            it_experience_years  REAL    NOT NULL,
+            certificates         TEXT    NOT NULL,
+            it_certs             TEXT    NOT NULL,
+            missing_skills_count INTEGER NOT NULL,
+            score                REAL    NOT NULL,
+            outcome              TEXT    NOT NULL,
+            timestamp            TEXT    NOT NULL,
+            review_decision      TEXT,
+            review_note          TEXT    NOT NULL DEFAULT '',
+            reviewed_at          TEXT
+        )"""
+
+    def __init__(self, path=DEFAULT_SQLITE_PATH):
+        self._path = path
+        self.__connection = self.open()
+
+    # connection handling
+    def open(self):
+        if self._path != ":memory:":
+            folder = os.path.dirname(self._path)
+            try:
+                if folder:
+                    os.makedirs(folder, exist_ok=True)
+            except OSError as e:
+                raise RepositoryError(f"Could not create folder {folder}: {e}") from e
+            
         try:
-            records.append({
-                "id": row.get("id", ""),
-                "name": row.get("name", ""),
-                "skills": _cell_to_list(row.get("skills", "")),
-                "it_experience_years": float(row.get("it_experience_years") or 0),
-                "certificates": _cell_to_certs_dict(row.get("certificates", "")),
-                "it_certs": _cell_to_list(row.get("it_certs", "")),
-                "missing_skills_count": int(float(row.get("missing_skills_count") or 0)),
-                "score": float(row.get("score") or 0),
-                "outcome": row.get("outcome", ""),
-                "timestamp": row.get("timestamp", ""),
-            })
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Skipping corrupt row: {row} ({e})")
+            return self.connect_and_prepare()
+        
+        except sqlite3.DatabaseError as e:
 
-    return records
+            if self._path == ":memory:":
+                raise RepositoryError(f"Database error: {e}") from e
+            
+            moved = f"{self._path}.corrupt-{datetime.now():%Y%m%d%H%M%S}"
+            logger.error(f"{self._path} is not a usable database ({e}). Moving it to {moved} and starting fresh.")
+            
+            try:
+                os.replace(self._path, moved)
+                return self.connect_and_prepare()
+            except (OSError, sqlite3.Error) as e2:
+                raise RepositoryError(f"Could not recover database {self._path}: {e2}") from e2
 
-# Determines the next sequential ID by counting existing records in the csv file
-def _next_id(path):
-    existing = load_records(path)
-    return len(existing) + 1
+    def connect_and_prepare(self):
+        
+        connection = sqlite3.connect(self._path)
+        
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute(self.SCHEMA)
+            connection.commit()
+        except sqlite3.Error:
+            connection.close()
+            raise
+        return connection
 
-# Appends a batch of records to csv database, writing headers if needed and using sequential IDs
-def save_records(records, path=CSV_FILE):
-    file_exists = os.path.exists(path)
-    start_id = _next_id(path)
+    def close(self):
+        if self.__connection is not None:
+            self.__connection.close()
+            self.__connection = None
 
-    try:
-        with open(path, "a", encoding="utf-8") as f:
-            if not file_exists:
-                f.write(_row_to_line(FIELDNAMES) + "\n")
-            for i, record in enumerate(records):
-                row = [
-                    f"{start_id + i:02d}",
-                    record.get("name", ""),
-                    _list_to_cell(record.get("skills", [])),
-                    record.get("it_experience_years", 0),
-                    _certs_dict_to_cell(record.get("certificates", {})),
-                    _list_to_cell(record.get("it_certs", [])),
-                    record.get("missing_skills_count", 0),
-                    record.get("score", 0),
-                    record.get("outcome", ""),
-                    record.get("timestamp", ""),
-                ]
-                f.write(_row_to_line(row) + "\n")
-    except Exception as e:
-        logger.error(f"Failed to save records to {path}: {e}")
+    def __enter__(self):
+        return self
 
-# Filters records by optional outcome, minimum score, and maximum score combined with AND logic
-def filter_records(records, outcome=None, min_score=None, max_score=None):
-    result = records
-    if outcome is not None:
-        result = [r for r in result if r["outcome"].lower() == outcome.lower()]
-    if min_score is not None:
-        result = [r for r in result if r["score"] >= min_score]
-    if max_score is not None:
-        result = [r for r in result if r["score"] <= max_score]
-    return result
+    def __exit__(self, *exc_info):
+        self.close()
+
+    def _conn(self):
+        
+        if self.__connection is None:
+            raise RepositoryError("The database connection is closed")
+        return self.__connection
+
+    @staticmethod
+    def values(record):
+        return (
+            record.name, json.dumps(record.skills), record.it_experience_years,
+            json.dumps(record.certificates), json.dumps(record.it_certs),
+            record.missing_skills_count, record.score, record.outcome.value, record.timestamp,
+            record.review_decision.value if record.review_decision else None,
+            record.review_note, record.reviewed_at,
+        )
+
+    @staticmethod
+    def to_record(row):
+        return ResumeRecord(
+            record_id=row["id"], name=row["name"], skills=json.loads(row["skills"]),
+            it_experience_years=row["it_experience_years"],
+            certificates=json.loads(row["certificates"]), it_certs=json.loads(row["it_certs"]),
+            missing_skills_count=row["missing_skills_count"], score=row["score"],
+            outcome=row["outcome"], timestamp=row["timestamp"],
+            review_decision=row["review_decision"], review_note=row["review_note"] or "",
+            reviewed_at=row["reviewed_at"],
+        )
+
+    def rows_to_records(self, rows):
+        records = []
+        for row in rows:
+            try:
+                records.append(self.to_record(row))
+            except (ValueError, TypeError, KeyError) as e:
+                logger.warning(f"Skipping corrupt database row id={row['id']}: {e}")
+        return records
+
+    def run(self, action):
+        # runs a database action and turns sqlite errors into RepositoryError
+        try:
+            return action(self._conn())
+        except sqlite3.Error as e:
+            raise RepositoryError(f"Database error: {e}") from e
+
+    # RecordRepository
+
+    _INSERT = ("INSERT INTO records (name, skills, it_experience_years, certificates, it_certs, "
+               "missing_skills_count, score, outcome, timestamp, review_decision, review_note, reviewed_at) "
+               "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)")
+
+    def add(self, record):
+        return self.add_many([record])[0]
+
+    def add_many(self, records):
+        def action(conn):
+            ids = []
+            with conn:  
+                for record in records:
+                    cursor = conn.execute(self._INSERT, self.values(record))
+                    ids.append(cursor.lastrowid)
+            return ids
+        ids = self.run(action)
+        for record, new_id in zip(records, ids):
+            record.assign_id(new_id)
+        return ids
+
+    def get(self, record_id):
+        rows = self.run(lambda c: c.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchall())
+        records = self.rows_to_records(rows)
+        return records[0] if records else None
+
+    def list_all(self):
+        return self.rows_to_records(self.run(lambda c: c.execute("SELECT * FROM records ORDER BY id").fetchall()))
+
+    def update(self, record):
+        def action(conn):
+            with conn:
+                cursor = conn.execute(
+                    "UPDATE records SET name=?, skills=?, it_experience_years=?, certificates=?, it_certs=?, "
+                    "missing_skills_count=?, score=?, outcome=?, timestamp=?, review_decision=?, "
+                    "review_note=?, reviewed_at=? WHERE id=?",
+                    self.values(record) + (record.id,))
+            return cursor.rowcount > 0
+        return self.run(action)
+
+    def delete(self, record_id):
+        def action(conn):
+            with conn:
+                cursor = conn.execute("DELETE FROM records WHERE id = ?", (record_id,))
+            return cursor.rowcount > 0
+        return self.run(action)
+
+    def query(self, outcome=None, min_score=None, max_score=None):
+        sql, params = "SELECT * FROM records WHERE 1=1", []
+        if outcome is not None:
+            wanted = Outcome.parse(outcome)
+            if wanted is None:
+                return []
+            sql += " AND outcome = ?"
+            params.append(wanted.value)
+        if min_score is not None:
+            sql += " AND score >= ?"
+            params.append(min_score)
+        if max_score is not None:
+            sql += " AND score <= ?"
+            params.append(max_score)
+        sql += " ORDER BY id"
+        return self.rows_to_records(self.run(lambda c: c.execute(sql, params).fetchall()))
+
+class InMemoryRecordRepository(RecordRepository):
+    # keeps records in a Python dict (used for tests)
+
+    def __init__(self):
+        self._records = {}     
+        self._next_id = 1
+
+    def add(self, record):
+        return self.add_many([record])[0]
+
+    def add_many(self, records):
+        ids = []
+        for record in records:
+            record.assign_id(self._next_id)
+            self._records[self._next_id] = copy.deepcopy(record)   # store a copy, like a database would
+            ids.append(self._next_id)
+            self._next_id += 1
+        return ids
+
+    def get(self, record_id):
+        record = self._records.get(record_id)
+        return copy.deepcopy(record) if record else None
+
+    def list_all(self):
+        return [copy.deepcopy(r) for _, r in sorted(self._records.items())]
+
+    def update(self, record):
+        if record.id not in self._records:
+            return False
+        self._records[record.id] = copy.deepcopy(record)
+        return True
+
+    def delete(self, record_id):
+        return self._records.pop(record_id, None) is not None
+
+    def query(self, outcome=None, min_score=None, max_score=None):
+        wanted = None
+        if outcome is not None:
+            wanted = Outcome.parse(outcome)
+            if wanted is None:
+                return []
+        return [r for r in self.list_all()
+                if (wanted is None or r.outcome is wanted)
+                and (min_score is None or r.score >= min_score)
+                and (max_score is None or r.score <= max_score)]
+
+class DataManager:
+
+    def __init__(self, repository):
+        self._repository = repository
+
+    @property
+    def repository(self):
+        return self._repository
+
+    def close(self):
+        self._repository.close()
+
+    def save_records(self, records):
+        records = list(records)
+        if not records:
+            return []
+        try:
+            self._repository.add_many(records)
+        except RepositoryError as e:
+            logger.error(f"Failed to save records: {e}")
+            return []
+        return records
+
+    def load_records(self):
+        try:
+            return self._repository.list_all()
+        except RepositoryError as e:
+            logger.error(f"Failed to load records: {e}")
+            return []
+
+    def filter_records(self, outcome=None, min_score=None, max_score=None):
+        try:
+            return self._repository.query(outcome, min_score, max_score)
+        except RepositoryError as e:
+            logger.error(f"Failed to query records: {e}")
+            return []
+
+    def get_record(self, record_id):
+        try:
+            return self._repository.get(record_id)
+        except RepositoryError as e:
+            logger.error(f"Failed to read record {record_id}: {e}")
+            return None
+
+    def update_record(self, record):
+        try:
+            return self._repository.update(record)
+        except RepositoryError as e:
+            logger.error(f"Failed to update record {record.id}: {e}")
+            return False
+
+    def delete_record(self, record_id):
+        try:
+            return self._repository.delete(record_id)
+        except RepositoryError as e:
+            logger.error(f"Failed to delete record {record_id}: {e}")
+            return False
