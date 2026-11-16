@@ -1,54 +1,18 @@
-import copy
 import json
 import logging
 import os
 import sqlite3
-from abc import ABC, abstractmethod
 from datetime import datetime
 
-from models import Outcome, ResumeRecord
+from DataManager.record_repository import RecordRepository
+from DataManager.repository_error import RepositoryError
+from Models.outcome import Outcome
+from Models.resume_record import ResumeRecord
 
 logger = logging.getLogger("DataManager")
 
+
 DEFAULT_SQLITE_PATH = os.path.join("data", "resume_records.db")
-
-
-class RepositoryError(Exception):
-    pass
-
-# Defining the contract
-class RecordRepository(ABC):
-
-    @abstractmethod
-    def add(self, record):
-        pass
-
-    @abstractmethod
-    def add_many(self, records):
-        pass
-
-    @abstractmethod
-    def get(self, record_id):
-        pass
-
-    @abstractmethod
-    def list_all(self):
-        pass
-
-    @abstractmethod
-    def update(self, record):
-        pass
-
-    @abstractmethod
-    def delete(self, record_id):
-        pass
-
-    @abstractmethod
-    def query(self, outcome=None, min_score=None, max_score=None):
-        pass
-
-    def close(self):
-        pass
 
 
 class SqliteRecordRepository(RecordRepository):
@@ -83,18 +47,13 @@ class SqliteRecordRepository(RecordRepository):
                     os.makedirs(folder, exist_ok=True)
             except OSError as e:
                 raise RepositoryError(f"Could not create folder {folder}: {e}") from e
-            
         try:
             return self.connect_and_prepare()
-        
         except sqlite3.DatabaseError as e:
-
             if self._path == ":memory:":
                 raise RepositoryError(f"Database error: {e}") from e
-            
             moved = f"{self._path}.corrupt-{datetime.now():%Y%m%d%H%M%S}"
             logger.error(f"{self._path} is not a usable database ({e}). Moving it to {moved} and starting fresh.")
-            
             try:
                 os.replace(self._path, moved)
                 return self.connect_and_prepare()
@@ -102,9 +61,7 @@ class SqliteRecordRepository(RecordRepository):
                 raise RepositoryError(f"Could not recover database {self._path}: {e2}") from e2
 
     def connect_and_prepare(self):
-        
         connection = sqlite3.connect(self._path)
-        
         try:
             connection.row_factory = sqlite3.Row
             connection.execute(self.SCHEMA)
@@ -126,11 +83,11 @@ class SqliteRecordRepository(RecordRepository):
         self.close()
 
     def _conn(self):
-        
         if self.__connection is None:
             raise RepositoryError("The database connection is closed")
         return self.__connection
 
+    # conversion
     @staticmethod
     def values(record):
         return (
@@ -163,7 +120,6 @@ class SqliteRecordRepository(RecordRepository):
         return records
 
     def run(self, action):
-        # runs a database action and turns sqlite errors into RepositoryError
         try:
             return action(self._conn())
         except sqlite3.Error as e:
@@ -181,7 +137,7 @@ class SqliteRecordRepository(RecordRepository):
     def add_many(self, records):
         def action(conn):
             ids = []
-            with conn:  
+            with conn: 
                 for record in records:
                     cursor = conn.execute(self._INSERT, self.values(record))
                     ids.append(cursor.lastrowid)
@@ -233,107 +189,3 @@ class SqliteRecordRepository(RecordRepository):
             params.append(max_score)
         sql += " ORDER BY id"
         return self.rows_to_records(self.run(lambda c: c.execute(sql, params).fetchall()))
-
-class InMemoryRecordRepository(RecordRepository):
-    # keeps records in a Python dict (used for tests)
-
-    def __init__(self):
-        self._records = {}     
-        self._next_id = 1
-
-    def add(self, record):
-        return self.add_many([record])[0]
-
-    def add_many(self, records):
-        ids = []
-        for record in records:
-            record.assign_id(self._next_id)
-            self._records[self._next_id] = copy.deepcopy(record)   # store a copy, like a database would
-            ids.append(self._next_id)
-            self._next_id += 1
-        return ids
-
-    def get(self, record_id):
-        record = self._records.get(record_id)
-        return copy.deepcopy(record) if record else None
-
-    def list_all(self):
-        return [copy.deepcopy(r) for _, r in sorted(self._records.items())]
-
-    def update(self, record):
-        if record.id not in self._records:
-            return False
-        self._records[record.id] = copy.deepcopy(record)
-        return True
-
-    def delete(self, record_id):
-        return self._records.pop(record_id, None) is not None
-
-    def query(self, outcome=None, min_score=None, max_score=None):
-        wanted = None
-        if outcome is not None:
-            wanted = Outcome.parse(outcome)
-            if wanted is None:
-                return []
-        return [r for r in self.list_all()
-                if (wanted is None or r.outcome is wanted)
-                and (min_score is None or r.score >= min_score)
-                and (max_score is None or r.score <= max_score)]
-
-class DataManager:
-
-    def __init__(self, repository):
-        self._repository = repository
-
-    @property
-    def repository(self):
-        return self._repository
-
-    def close(self):
-        self._repository.close()
-
-    def save_records(self, records):
-        records = list(records)
-        if not records:
-            return []
-        try:
-            self._repository.add_many(records)
-        except RepositoryError as e:
-            logger.error(f"Failed to save records: {e}")
-            return []
-        return records
-
-    def load_records(self):
-        try:
-            return self._repository.list_all()
-        except RepositoryError as e:
-            logger.error(f"Failed to load records: {e}")
-            return []
-
-    def filter_records(self, outcome=None, min_score=None, max_score=None):
-        try:
-            return self._repository.query(outcome, min_score, max_score)
-        except RepositoryError as e:
-            logger.error(f"Failed to query records: {e}")
-            return []
-
-    def get_record(self, record_id):
-        try:
-            return self._repository.get(record_id)
-        except RepositoryError as e:
-            logger.error(f"Failed to read record {record_id}: {e}")
-            return None
-
-    def update_record(self, record):
-        try:
-            return self._repository.update(record)
-        except RepositoryError as e:
-            logger.error(f"Failed to update record {record.id}: {e}")
-            return False
-
-    def delete_record(self, record_id):
-        try:
-            return self._repository.delete(record_id)
-        except RepositoryError as e:
-            logger.error(f"Failed to delete record {record_id}: {e}")
-            return False

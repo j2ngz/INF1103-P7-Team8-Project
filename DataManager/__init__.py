@@ -1,0 +1,9 @@
+#Gathers all imports from the other files in the DataManager folder
+
+from DataManager.data_manager import DataManager
+from DataManager.in_memory_record_repository import InMemoryRecordRepository
+from DataManager.record_repository import RecordRepository
+from DataManager.repository_error import RepositoryError
+from DataManager.sqlite_record_repository import DEFAULT_SQLITE_PATH, SqliteRecordRepository
+from DataManager.review_error import ReviewError
+from DataManager.review_service import ReviewService
