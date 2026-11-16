@@ -1,0 +1,5 @@
+
+
+
+class ReviewError(Exception):
+    pass
