@@ -22,7 +22,7 @@ class ResumeFolder:
         return os.path.isdir(self._resume_dir)
 
     def pdf_paths(self):
-        # Paths of every PDF in the folder, sorted by name; empty if the folder is missing
+        # Paths of every PDF in the folder, sorted by name and empty if the folder is missing
         if not self.exists():
             return []
         return [
@@ -33,11 +33,11 @@ class ResumeFolder:
 
     def archive(self, filenames):
         # Moves each file into the scanned folder (created if needed)
-        # A file that cannot be moved is skipped; returns (filename, error message) for each one that failed
+        # A file that cannot be moved is skipped and returns (filename, error message) for each one that failed
         failures = []
         os.makedirs(self._scanned_dir, exist_ok=True)
         for name in filenames:
-            name = os.path.basename(name)   # the name comes from the AI: never let it leave the folder
+            name = os.path.basename(name)   # filename comes from the AI's reply, keep only the file name so it can't point outside resumes/
             try:
                 shutil.move(os.path.join(self._resume_dir, name), os.path.join(self._scanned_dir, name))
             except Exception as e:   # e.g. the file is open in another program
