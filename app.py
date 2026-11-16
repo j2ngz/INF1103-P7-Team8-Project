@@ -121,13 +121,15 @@ class ScreeningApp:
             self._io.show("\nNo Flagged records are waiting for review.")
             return
         self._io.show_records(pending, title="Flagged - waiting for review")
-        record_id = self._io.prompt_record_id("Enter the ID of the record to review (blank to cancel): ")
-        if record_id is None:
-            return
-        record = next((r for r in pending if r.id == record_id), None)
-        if record is None:
-            self._io.warn(f"Record {record_id} is not waiting for review.")
-            return
+        # reprompt until the ID is one of the Flagged records in the table
+        while True:
+            record_id = self._io.prompt_record_id("Enter the ID of the record to review (blank to cancel): ")
+            if record_id is None:
+                return
+            record = next((r for r in pending if r.id == record_id), None)
+            if record is not None:
+                break
+            self._io.warn(f"Record {record_id} is not waiting for review. Enter an ID shown in the table.")
         answer = self._io.prompt_review_decision(record)
         if answer is None:
             return
@@ -145,12 +147,14 @@ class ScreeningApp:
             self._io.warn("No records to delete.")
             return
         self._io.show_records(records)
-        record_id = self._io.prompt_record_id("Enter the ID of the record to delete (blank to cancel): ")
-        if record_id is None:
-            return
-        if self._data.get_record(record_id) is None:
-            self._io.warn(f"No record with id {record_id}.")
-            return
+        # reprompt until the ID is one of the stored records in the table
+        while True:
+            record_id = self._io.prompt_record_id("Enter the ID of the record to delete (blank to cancel): ")
+            if record_id is None:
+                return
+            if self._data.get_record(record_id) is not None:
+                break
+            self._io.warn(f"No record with id {record_id}. Enter an ID shown in the table.")
         if not self._io.confirm(f"Delete record {record_id:02d}?"):
             self._io.show("Cancelled.")
             return
