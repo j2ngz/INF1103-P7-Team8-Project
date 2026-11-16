@@ -1,22 +1,26 @@
 FROM python:3.14-slim
 
 WORKDIR /app
-
 ENV PYTHONUNBUFFERED=1
-
-COPY ai_manager.py .
-COPY logic_manager.py .
-COPY data_manager.py .
-COPY io_manager.py .
-COPY requirements.txt .
-COPY .env .
-
-# Demo resumes baked into the image
-COPY resumes/ ./resumes/
 
 RUN pip install --no-cache-dir google-genai
 
-# Scanned resumes get moved here
-RUN mkdir -p scannedResume
+#All the files needed for docker to run smmothly
+COPY app.py ./
+COPY Models/ ./Models/
+COPY AIManager/ ./AIManager/
+COPY IOManager/ ./IOManager/
+COPY LogicManager/ ./LogicManager/
+COPY DataManager/ ./DataManager/
+COPY requirements.txt ./
 
-CMD ["python", "io_manager.py"]
+#For the automated tests files the team created 
+COPY tests/ ./tests/
+
+#Copy all the resume that is in the resume folders
+COPY resumes/ ./resumes/
+
+#This is to create a archive folder for scanned resumes and the folder that holds the database
+RUN mkdir -p scannedResume data
+
+CMD ["python", "app.py"]
